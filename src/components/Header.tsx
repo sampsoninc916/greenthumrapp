@@ -38,7 +38,7 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
               
             </div> */}
             <div className="hidden sm:block">
-              <h1 className="text-xl font-semibold text-green-800">GreenThumr</h1>
+              <h1 className="text-xl oxygen-bold text-green-800">GreenThumr</h1>
               <p className="text-xs text-green-600">Buy • Sell • Trade</p>
             </div>
           </div>
