@@ -58,3 +58,7 @@
   font-weight: 700;
   font-style: normal;
 }
+
+input#file-upload-button {
+  margin-left: 2rem;
+}

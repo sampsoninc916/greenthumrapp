@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { PlantCard } from './components/PlantCard';
 import { PlantDetailModal } from './components/PlantDetailModal';
+import { CreateNewPlantModal } from './components/CreateNewPlantModal';
 import { Button } from './components/ui/button';
 import { SlidersHorizontal, Grid3X3, List } from 'lucide-react';
 import logo from './logo.svg';
@@ -156,6 +157,7 @@ const mockPlants = [
 const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCreateNewPlantModalOpen, setIsCreateNewPlantModalOpen] = useState(false);
   type Plant = typeof mockPlants[number];
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
@@ -211,7 +213,7 @@ const App = () => {
 
   const handleAddListing = () => {
     // In a real app, this would open a form to add a new listing
-    alert('Add listing functionality would be implemented here!');
+    setIsCreateNewPlantModalOpen(true);
   };
 
   return (
@@ -317,6 +319,10 @@ const App = () => {
         plant={selectedPlant}
         isOpen={isPlantModalOpen}
         onClose={() => setIsPlantModalOpen(false)}
+      />
+      <CreateNewPlantModal
+        isOpen={isCreateNewPlantModalOpen}
+        onClose={() => setIsCreateNewPlantModalOpen(false)}
       />
     </div>
   );
