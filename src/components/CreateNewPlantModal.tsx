@@ -101,7 +101,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
             <div className="space-y-2">
               <Image className="w-full m-auto h-64" />
               <div className="flex items-center justify-between border border-black rounded-md">
-                  <label htmlFor="file_input" className="inline w-full text-sm font-medium text-gray-700 bg-green-600 rounded-md p-2 text-center">Upload Image</label>
+                  <label htmlFor="file_input" className="inline w-full text-sm font-medium text-black bg-green-600 rounded-md p-2 text-center">Upload Image(s)</label>
                   <input
                     type="file"
                     id="file_input"
@@ -126,8 +126,78 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
               </div> */}
             </div>
 
-            <Separator />
-
+            {/* <Separator /> */}
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <input
+                type="text"
+                className="inline-block p-2"
+                placeholder="Plant Name"
+              />
+            </div>
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <input
+                type="number"
+                className="inline-block p-2 w-full"
+                placeholder="Price"
+              />
+            </div>
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <input
+                type="text"
+                className="inline-block p-2"
+                placeholder="Location"
+              />
+            </div>
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <select
+                className="inline-block p-2 w-full"
+              >
+                <option value="">Select Category</option>
+                <option value="indoor">Indoor</option>
+                <option value="outdoor">Outdoor</option>
+                <option value="succulent">Succulent</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <input
+                type="text"
+                className="inline-block p-2"
+                placeholder="Condition"
+              />
+            </div>
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <input
+                type="text"
+                className="inline-block p-2"
+                placeholder="Description"
+              />
+            </div>
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <input
+                type="text"
+                className="inline-block p-2"
+                placeholder="Care Instructions"
+              />
+            </div>
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <input
+                type="text"
+                className="inline-block p-2"
+                placeholder="Pot Size"
+              />
+            </div>
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <input
+                type="text"
+                className="inline-block p-2"
+                placeholder="Height"
+              />
+            </div>
+            <div className="flex items-center justify-between border border-black rounded-md">
+              <button className="inline w-full text-sm font-medium text-black bg-green-600 rounded-md p-2 text-center">
+                <span>Add Plant</span>
+              </button>
+            </div>
             {/* Seller Info */}
             {/* <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -153,7 +223,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
               </div>
             </div> */}
 
-            <Separator />
+            {/* <Separator /> */}
 
             {/* Plant Details */}
             {/* <div className="space-y-4">
@@ -179,7 +249,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
               </div>
             </div> */}
 
-            <Separator />
+            {/* <Separator /> */}
 
             {/* Actions */}
             {/* <div className="space-y-3">
