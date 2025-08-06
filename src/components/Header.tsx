@@ -3,6 +3,7 @@ import { Search, Plus, User, Menu, Leaf } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
+import { Link } from 'react-router-dom';
 import GreenThumrLogo from './assets/GreenThumrLogoV1.png'; // Adjust the path as necessary
 
 interface HeaderProps {
@@ -60,15 +61,31 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <Button 
+          <Link to="/signup">
+            <Button
+              className="hidden sm:flex bg-green-600 hover:bg-green-700 text-white"
+            >
+              Login
+            </Button>
+          </Link>
+
+          <Link to="/signup">
+            <Button
+              className="hidden sm:flex bg-green-600 hover:bg-green-700 text-white"
+            >
+              Signup
+            </Button>
+          </Link>
+
+          <Button
             onClick={onAddListing}
             className="hidden sm:flex bg-green-600 hover:bg-green-700 text-white"
           >
             <Plus className="h-4 w-4 mr-2" />
             Sell Plant
           </Button>
-          
-          <Button 
+
+          <Button
             onClick={onAddListing}
             className="sm:hidden bg-green-600 hover:bg-green-700 text-white"
             size="sm"
@@ -78,8 +95,8 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
 
           <Button variant="ghost" size="sm" className="relative">
             <User className="h-5 w-5" />
-            <Badge 
-              variant="destructive" 
+            <Badge
+              variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
             >
               3

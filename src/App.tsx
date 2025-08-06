@@ -172,7 +172,7 @@ const App = () => {
     return mockPlants.filter(plant => {
       // Search filter
       if (searchQuery && !plant.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-          !plant.category.toLowerCase().includes(searchQuery.toLowerCase())) {
+        !plant.category.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false;
       }
 
@@ -216,19 +216,19 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
-      <Header 
+      <Header
         onSearch={setSearchQuery}
         onAddListing={handleAddListing}
         onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
       />
       <div className="flex">
-        <Sidebar 
+        <Sidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
           filters={filters}
           onFiltersChange={setFilters}
         />
-        
+
         <main className="flex-1 p-6">
           {/* Controls */}
           <div className="flex items-center justify-between mb-6">
@@ -242,7 +242,7 @@ const App = () => {
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                 Filters
               </Button>
-              
+
               <div className="text-sm text-muted-foreground">
                 {filteredPlants.length} plants found
                 {searchQuery && (
@@ -272,8 +272,8 @@ const App = () => {
           {/* Plants Grid */}
           {filteredPlants.length > 0 ? (
             <div className={`
-              ${viewMode === 'grid' 
-                ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' 
+              ${viewMode === 'grid'
+                ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
                 : 'space-y-4'
               }
             `}>
