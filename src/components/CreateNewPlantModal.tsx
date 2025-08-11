@@ -153,9 +153,13 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                 className="inline-block p-2 w-full"
               >
                 <option value="">Select Category</option>
-                <option value="indoor">Indoor</option>
-                <option value="outdoor">Outdoor</option>
-                <option value="succulent">Succulent</option>
+                <option value="houseplants">Houseplants</option>
+                <option value="flowers">Flowers</option>
+                <option value="herbs">Herbs</option>
+                <option value="succulents">Succulents</option>
+                <option value="trees">Trees</option>
+                <option value="seeds">Seeds</option>
+                <option value="tools">Tools & Supplies</option>
               </select>
             </div>
             <div className="flex items-center justify-between border border-black rounded-md">
