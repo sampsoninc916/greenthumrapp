@@ -33,7 +33,7 @@ interface CreateNewPlantModalProps {
 export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProps) {
   // const [currentImageIndex, setCurrentImageIndex] = useState(0);
   // const [isLiked, setIsLiked] = useState(false);
-  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+  // const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
   // if (!plant) return null;
 
   // const getConditionColor = (condition: string) => {

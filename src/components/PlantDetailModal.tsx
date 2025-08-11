@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { X, Heart, MapPin, User, MessageCircle, Star, Shield } from 'lucide-react';
+import { X, Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { StarRating } from "./StarRating";
+import { Arrow } from '@radix-ui/react-context-menu';
 
 interface Plant {
   id: string;
@@ -44,7 +46,10 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
   const [isLiked, setIsLiked] = useState(false);
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
   const [isReviewScreenOpen, setIsReviewScreenOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
   const [reviewFormFields, setReviewFormFields] = useState<Review[]>([]);
+  const [showBackAlert, setShowBackAlert] = useState(false);
 
   if (!plant) return null;
 
@@ -56,6 +61,27 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
       case 'Fair': return 'bg-orange-100 text-orange-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const handleReviewBack = (reviewComment: string, reviewRating: number) => {
+    if (reviewRating > 0 || reviewComment.trim() !== "") {
+      setShowBackAlert(true);
+    } else {
+      setIsReviewScreenOpen(false);
+      setReviewRating(0);
+      setReviewComment("");
+    }
+  };
+
+  const handleBackConfirm = () => {
+    setShowBackAlert(false);
+    setIsReviewScreenOpen(false);
+    setReviewRating(0);
+    setReviewComment("");
+  };
+
+  const handleBackCancel = () => {
+    setShowBackAlert(false);
   };
 
   return (
@@ -229,7 +255,14 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
         <DialogContent className={`max-w-4xl h-[${isMobileView ? `100vh` : `83vh`}] overflow-y-auto`}>
           <div className="space-y-12">
             <DialogHeader className="flex flex-row items-center justify-between p-0">
-              <div />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() =>handleReviewBack(reviewComment, reviewRating)}
+                className="h-6 w-8 p-0 -mt-6 -ml-4"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -239,18 +272,53 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                 {/* <X className="h-4 w-4" /> */}
               </Button>
             </DialogHeader>
+            {/* Custom Alert Modal */}
+            {showBackAlert && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 border border-black rounded-md">
+                <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full">
+                  <div className="mb-4 text-center">
+                    <p className="text-lg font-semibold mb-2">
+                      Are you sure you want to go back?
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Some changes may be unsaved.
+                    </p>
+                  </div>
+                  <div className="flex justify-center gap-3">
+                    <Button
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={handleBackConfirm}
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border-green-600 text-green-600 hover:bg-green-50"
+                      onClick={handleBackCancel}
+                    >
+                      No
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Details */}
               <div className="space-y-6">
                 {/* Header */}
                 <div className="space-y-2">
                   <div className="flex items-start justify-between">
-                    
+                    <h1 className="text-2xl font-semibold">Your Rating</h1>
+                    <StarRating value={reviewRating} onChange={setReviewRating} />
                   </div>
                   
                   <div className="flex items-center justify-between border border-black rounded-md">
-                    <textarea id="message" rows={4} className="block p-2 w-full text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Write your review here"></textarea>
+                    <textarea id="message" rows={32} onChange={(e) => setReviewComment(e.target.value)} className="block p-2 w-full text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Write your review here"></textarea>
                   </div>
-
+                  <div className="flex items-start justify-between">
+                    <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => setIsReviewScreenOpen(true)}>
+                      Submit
+                    </Button>
+                  </div>
                   {/* <div className="flex items-center gap-1 text-muted-foreground">
                     <MapPin className="h-4 w-4" />
                     <span>{plant.location}</span>
