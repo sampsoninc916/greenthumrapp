@@ -12,7 +12,7 @@ interface HeaderProps {
   onMenuToggle: () => void;
 }
 
-export function Header({ onSearch, onAddListing, onMenuToggle}: HeaderProps) {
+export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [createNewPlant, setCreateNewPlant] = useState(true);
 
@@ -30,9 +30,9 @@ export function Header({ onSearch, onAddListing, onMenuToggle}: HeaderProps) {
       <div className="container mx-auto px-4 h-16 flex items-center gap-4">
         {/* Logo */}
         <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             className="md:hidden"
             onClick={onMenuToggle}
           >
@@ -98,15 +98,17 @@ export function Header({ onSearch, onAddListing, onMenuToggle}: HeaderProps) {
             <Plus className="h-4 w-4" />
           </Button>
 
-          <Button variant="ghost" size="sm" className="relative">
-            <User className="h-5 w-5" />
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
-            >
-              3
-            </Badge>
-          </Button>
+          <Link to="/profile">
+            <Button variant="ghost" size="sm" className="relative">
+              <User className="h-5 w-5" />
+              <Badge
+                variant="destructive"
+                className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
+              >
+                3
+              </Badge>
+            </Button>
+          </Link>
         </div>
       </div>
     </header>

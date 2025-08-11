@@ -16,7 +16,7 @@ export function SignupPage() {
 
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center px-6">
-        <div className="w-full max-w-sm space-y-6">
+        <div className="w-[375px] max-w-sm space-y-6">
           {/* Question */}
           <div className="text-center">
             <h2 className="text-gray-900" style={{ fontSize: '18px', fontWeight: 500, lineHeight: '1.4' }}>
