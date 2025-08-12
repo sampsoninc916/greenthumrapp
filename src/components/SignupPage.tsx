@@ -8,7 +8,7 @@ export function SignupPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="bg-[#36AE46] px-4 py-4 flex items-center">
+      <div className="bg-green-600 px-4 py-4 flex items-center">
         <h1 className="text-white text-lg" style={{ color: '#ffffff', fontWeight: 500 }}>
           Thumr
         </h1>
