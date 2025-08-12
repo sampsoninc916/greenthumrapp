@@ -6,6 +6,7 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { StarRating } from './StarRating';
 import { Arrow } from '@radix-ui/react-context-menu';
 
 interface Plant {
@@ -307,7 +308,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                 <div className="space-y-2">
                   <div className="flex items-start justify-between">
                     <h1 className="text-2xl font-semibold">Your Rating</h1>
-                    {/* <StarRating value={reviewRating} onChange={setReviewRating} /> */}
+                    <StarRating value={reviewRating} onChange={setReviewRating} />
                   </div>
                   
                   <div className="flex items-center justify-between border border-black rounded-md">
