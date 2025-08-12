@@ -31,20 +31,16 @@ interface CreateNewPlantModalProps {
 }
 
 export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProps) {
-  // const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  // const [isLiked, setIsLiked] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const maxFileSize = 50 * 1024 * 1024; // 50MB
 
-  // if (!plant) return null;
-
-  // const getConditionColor = (condition: string) => {
-  //   switch (condition) {
-  //     case 'New': return 'bg-green-100 text-green-800';
-  //     case 'Like New': return 'bg-emerald-100 text-emerald-800';
-  //     case 'Good': return 'bg-yellow-100 text-yellow-800';
-  //     case 'Fair': return 'bg-orange-100 text-orange-800';
-  //     default: return 'bg-gray-100 text-gray-800';
-  //   }
-  // };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  if (!e.target.files) return;
+    const selectedFiles = Array.from(e.target.files);
+    // Filter files over 50MB
+    const validFiles = selectedFiles.filter(file => file.size <= maxFileSize);
+    setFiles(validFiles);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -107,6 +103,8 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                     id="file_input"
                     className="hidden"
                     placeholder=""
+                    multiple
+                    onChange={handleFileChange}
                   />
               </div>
               
