@@ -6,7 +6,7 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { ImageWithFallback } from './figma/ImageWithFallback';
-import { StarRating } from './StarRating';
+import { StarRating } from "./StarRating";
 import { Arrow } from '@radix-ui/react-context-menu';
 
 interface Plant {
@@ -95,7 +95,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                 variant="white" 
                 size="sm" 
                 onClick={onClose}
-                className="h-6 w-8 p-0"
+                className="h-6 w-8 p-0 hidden"
               >
                 {/* <X className="h-4 w-4" /> */}
               </Button>
@@ -267,7 +267,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                 variant="ghost" 
                 size="sm" 
                 onClick={onClose}
-                className="h-6 w-8 p-0"
+                className="h-6 w-8 p-0 hidden"
               >
                 {/* <X className="h-4 w-4" /> */}
               </Button>
