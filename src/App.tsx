@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { PlantCard } from './components/PlantCard';
@@ -168,6 +168,8 @@ const App = () => {
     condition: '',
     location: 'anywhere'
   });
+  const [jwt, setJwt] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null); // Replace with your user type
 
   // Filter plants based on search and filters
   const filteredPlants = useMemo(() => {
@@ -215,6 +217,17 @@ const App = () => {
     // In a real app, this would open a form to add a new listing
     setIsCreateNewPlantModalOpen(true);
   };
+
+  useEffect(() => {
+    async function fetchJwt() {
+      if (user && user.isVerified) {
+        const res = await fetch('/api/request-jwt', { method: 'POST', body: JSON.stringify({ userId: user.id }) });
+        const data = await res.json();
+        setJwt(data.token);
+      }
+    }
+    fetchJwt();
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
