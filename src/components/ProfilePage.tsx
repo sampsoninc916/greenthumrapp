@@ -101,7 +101,8 @@ export function ProfilePage() {
       try {
         const userId = "97c7e891-a50d-456d-990c-a3a271099c0c";
         const tableName = "users";
-        const url = `https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/dev?tableName=${tableName}&userId=${userId}`;
+        const userData = { userId, tableName };
+        const url = `https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/readUsersData?tableName=${tableName}&userId=${userId}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to fetch user data");
         const data = await response.json();
