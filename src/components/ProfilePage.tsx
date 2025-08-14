@@ -1,54 +1,79 @@
-import { useState, ChangeEvent } from "react";
+import { useState, useEffect, ChangeEvent } from "react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { PlantCard } from "./PlantCard";
 
-// Initial mock user data
-const initialUser = {
-  name: "Jane Doe",
+interface PlantListing {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  location: string;
+  category: string;
+  condition: string;
+  seller: string;
+  description: string;
+}
+
+interface Review {
+  rating: number;
+  review: string;
+}
+
+interface User {
+  userId: string;
+  fullName: string;
+  joinedDate: string;
+  profilePic: string;
+  description: string;
+  plantListings: PlantListing[];
+  savedListings: PlantListing[];
+  subscription: string;
+  reviews: Review[];
+}
+
+// Helper to parse DynamoDB JSON format
+function parseUserData(data: any) {
+  return {
+    userId: data.userId?.S || "",
+    fullName: data.fullName?.S || "",
+    joinedDate: data.joinedDate?.S || "",
+    profilePic: data.profilePic?.S || "",
+    description: data.plantListings?.M?.description?.S || "",
+    plantListings: data.plantListings
+      ? [data.plantListings.M].map((listing: any) => ({
+          id: listing.id?.S || "",
+          name: listing.name?.S || "",
+          price: Number(listing.price?.N || 0),
+          image: listing.images?.SS?.[0] || "",
+          location: listing.location?.S || "",
+          category: listing.category?.S || "",
+          condition: listing.condition?.S || "",
+          seller: listing.seller?.S || "",
+          description: listing.description?.S || "",
+        }))
+      : [],
+    savedListings: [], // Not present in your format, keep empty for now
+    subscription: "Free Plan",
+    reviews: Array.isArray(data.reviews?.L)
+      ? data.reviews.L.map((r: any) => ({
+          rating: Number(r.M?.rating?.N || 0),
+          review: r.M?.review?.S || "",
+        }))
+      : [],
+  };
+}
+
+const initialUser: User = {
+  userId: "",
+  fullName: "Jane Doe",
+  joinedDate: "",
+  profilePic: "https://images.unsplash.com/photo-1494790108755-2616b612b167?w=150",
   description: "Plant enthusiast and collector. I love sharing rare houseplants and gardening tips!",
-  avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b167?w=150",
-  listings: [
-    {
-      id: "1",
-      name: "Monstera Deliciosa",
-      price: 45,
-      image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400",
-      location: "Brooklyn, NY",
-      category: "Houseplants",
-      condition: "Like New",
-    },
-    {
-      id: "2",
-      name: "Fiddle Leaf Fig",
-      price: 75,
-      image: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400",
-      location: "San Francisco, CA",
-      category: "Trees",
-      condition: "New",
-    },
-    {
-      id: "3",
-      name: "Snake Plant",
-      price: 30,
-      image: "https://images.unsplash.com/photo-1572688484438-313a6e50c333?w=400",
-      location: "Austin, TX",
-      category: "Houseplants",
-      condition: "New",
-    },
-  ],
-  savedListings: [
-    {
-      id: "4",
-      name: "Lavender Plant",
-      price: 15,
-      image: "https://images.unsplash.com/photo-1611909023032-2d6b3134ecba?w=400",
-      location: "Portland, OR",
-      category: "Herbs",
-      condition: "Good",
-    },
-  ],
+  plantListings: [],
+  savedListings: [],
   subscription: "Free Plan",
+  reviews: [],
 };
 
 const settingsTabs = [
@@ -67,8 +92,31 @@ export function ProfilePage() {
   const [user, setUser] = useState(initialUser);
   const [isEditing, setIsEditing] = useState(false);
   const [editDescription, setEditDescription] = useState(user.description);
-  const [editAvatar, setEditAvatar] = useState(user.avatar);
+  const [editAvatar, setEditAvatar] = useState(user.profilePic);
   const [activeTab, setActiveTab] = useState("listings");
+
+  // Fetch user data from API on mount
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const userId = "97c7e891-a50d-456d-990c-a3a271099c0c";
+        const tableName = "users";
+        const url = `https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/dev?tableName=${tableName}&userId=${userId}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to fetch user data");
+        const data = await response.json();
+        console.log("Fetched user data:", data);
+        console.log("response status:", response.status);
+        const parsed = parseUserData(data);
+        setUser(parsed);
+        setEditDescription(parsed.description);
+        setEditAvatar(parsed.profilePic);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    fetchUser();
+  }, []);
 
   // Handle avatar file upload
   const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -82,11 +130,11 @@ export function ProfilePage() {
     }
   };
 
-  // Save changes
+  // Save changes (local only)
   const handleSave = () => {
     setUser({
       ...user,
-      avatar: editAvatar,
+      profilePic: editAvatar,
       description: editDescription,
     });
     setIsEditing(false);
@@ -95,7 +143,7 @@ export function ProfilePage() {
   // Cancel editing
   const handleCancel = () => {
     setEditDescription(user.description);
-    setEditAvatar(user.avatar);
+    setEditAvatar(user.profilePic);
     setIsEditing(false);
   };
 
@@ -105,8 +153,8 @@ export function ProfilePage() {
       <div className="flex flex-col items-center mb-8">
         <div className="relative">
           <img
-            src={isEditing ? editAvatar : user.avatar}
-            alt={user.name}
+            src={isEditing ? editAvatar : user.profilePic}
+            alt={user.fullName}
             className="w-24 h-24 rounded-full object-cover border-4 border-green-300 mb-4"
           />
           {isEditing && (
@@ -121,7 +169,7 @@ export function ProfilePage() {
             </label>
           )}
         </div>
-        <h2 className="text-2xl font-semibold text-green-800">{user.name}</h2>
+        <h2 className="text-2xl font-semibold text-green-800">{user.fullName}</h2>
         {isEditing ? (
           <textarea
             value={editDescription}
@@ -173,21 +221,25 @@ export function ProfilePage() {
           <>
             <h3 className="text-lg font-medium text-green-700 mb-4">My Listings</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {user.listings.map(listing => (
-                <Card key={listing.id} className="p-0">
-                  <PlantCard
-                    id={listing.id}
-                    name={listing.name}
-                    price={listing.price}
-                    image={listing.image}
-                    location={listing.location}
-                    category={listing.category}
-                    seller={user.name}
-                    condition={listing.condition}
-                    onClick={() => {}}
-                  />
-                </Card>
-              ))}
+              {user.plantListings && user.plantListings.length > 0 ? (
+                user.plantListings.map((listing: any) => (
+                  <Card key={listing.id}>
+                    <PlantCard
+                      id={listing.id}
+                      name={listing.name}
+                      price={listing.price}
+                      image={listing.image}
+                      location={listing.location}
+                      category={listing.category}
+                      seller={listing.seller}
+                      condition={listing.condition}
+                      onClick={() => {}}
+                    />
+                  </Card>
+                ))
+              ) : (
+                <div className="text-gray-500">No listings yet.</div>
+              )}
             </div>
           </>
         )}
@@ -196,9 +248,9 @@ export function ProfilePage() {
           <>
             <h3 className="text-lg font-medium text-green-700 mb-4">Saved Listings</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {user.savedListings.length > 0 ? (
-                user.savedListings.map(listing => (
-                  <Card key={listing.id} className="p-0">
+              {user.savedListings && user.savedListings.length > 0 ? (
+                user.savedListings.map((listing: any) => (
+                  <Card key={listing.id}>
                     <PlantCard
                       id={listing.id}
                       name={listing.name}
@@ -206,7 +258,7 @@ export function ProfilePage() {
                       image={listing.image}
                       location={listing.location}
                       category={listing.category}
-                      seller={user.name}
+                      seller={listing.seller}
                       condition={listing.condition}
                       onClick={() => {}}
                     />
