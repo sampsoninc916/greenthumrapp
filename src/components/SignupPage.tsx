@@ -186,11 +186,11 @@ export function SignupPage() {
             <p className="text-sm text-gray-600">Please enter your credentials to continue.</p>
             <Input
               type="text"
-              placeholder="Enter email"
+              placeholder="Enter username"
               className="w-full h-12 bg-gray-100 border-0 rounded-lg px-4"
               style={{ backgroundColor: '#f3f3f5' }}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
             />
             <Input
               type="password"
@@ -207,6 +207,7 @@ export function SignupPage() {
             >
               Sign In
             </Button>
+            {error && <p className="text-red-500 text-sm">{error}</p>}
           </div>
         )}
       </div>
