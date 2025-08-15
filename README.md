@@ -1,3 +1,5 @@
+# DO NOT PUSH CHANGES TO THIS BRANCH UNLESS CHANGES HAVE BEEN FINALIZED BY THE TEAM AND WE'RE READY FOR LAUNCH
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
