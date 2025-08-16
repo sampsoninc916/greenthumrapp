@@ -29,39 +29,21 @@ interface User {
   plantListings: PlantListing[];
   savedListings: PlantListing[];
   subscription: string;
-  reviews: Review[];
+  // reviews: Review[];
 }
 
 // Helper to parse DynamoDB JSON format
 function parseUserData(data: any) {
   console.log("Parsing user data:", data);
   return {
-    userId: data.userId?.S || "",
-    fullName: data.fullName?.S || "",
-    joinedDate: data.joinedDate?.S || "",
-    profilePic: data.profilePic?.S || "",
-    description: data.plantListings?.M?.description?.S || "",
-    plantListings: data.plantListings
-      ? [data.plantListings.M].map((listing: any) => ({
-          id: listing.id?.S || "",
-          name: listing.name?.S || "",
-          price: Number(listing.price?.N || 0),
-          image: listing.images?.SS?.[0] || "",
-          location: listing.location?.S || "",
-          category: listing.category?.S || "",
-          condition: listing.condition?.S || "",
-          seller: listing.seller?.S || "",
-          description: listing.description?.S || "",
-        }))
-      : [],
-    savedListings: [], // Not present in your format, keep empty for now
-    subscription: "Free Plan",
-    reviews: Array.isArray(data.reviews?.L)
-      ? data.reviews.L.map((r: any) => ({
-          rating: Number(r.M?.rating?.N || 0),
-          review: r.M?.review?.S || "",
-        }))
-      : [],
+    userId: data.userId || "",
+    fullName: data.fullName || "",
+    joinedDate: data.joinedDate || "",
+    profilePic: data.profilePic || "",
+    description: data.plantListings ? [data.plantListings][0]?.description || "" : "",
+    subscription: data.subscription || "Free Plan",
+    plantListings: data.plantListings && Array.isArray(data.plantListings) && data.plantListings.length > 1 ? [...data.plantListings] : ([data.plantListings && !Array.isArray(data.plantListings) ? data.plantListings : []]),
+    savedListings: data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 1 ? [...data.savedListings] : ([data.savedListings && !Array.isArray(data.savedListings) ? data.savedListings : []]),
   };
 }
 
@@ -74,7 +56,7 @@ const initialUser: User = {
   plantListings: [],
   savedListings: [],
   subscription: "Free Plan",
-  reviews: [],
+  // reviews: [],
 };
 
 const settingsTabs = [
@@ -111,8 +93,9 @@ export function ProfilePage() {
         console.log("Fetched user data:", data);
         console.log("response status:", response.status);
         const parsed = parseUserData(data);
+        console.log(parsed);
         setUser(parsed);
-        setEditDescription(parsed.description);
+        setEditDescription(parsed.description || "");
         setEditAvatar(parsed.profilePic);
       } catch (error) {
         console.error(error);
@@ -156,7 +139,7 @@ export function ProfilePage() {
       <div className="flex flex-col items-center mb-8">
         <div className="relative">
           <img
-            src={isEditing ? editAvatar : user.profilePic}
+            src={isEditing ? editAvatar : user.profilePic.replace("'", "").replace('https://dev.thumr.com/', '')}
             alt={user.fullName}
             className="w-24 h-24 rounded-full object-cover border-4 border-green-300 mb-4"
           />
