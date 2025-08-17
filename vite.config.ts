@@ -5,5 +5,5 @@ import tailwindcss from '@tailwindcss/vite' // If using the Vite plugin
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/dev.thumr.com/', // Example: Replace with your actual sub-directory
+  base: '/', // Example: Replace with your actual sub-directory
 })
