@@ -66,7 +66,7 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <Link to="/signup">
+          <Link to="/login">
             <Button
               className="hidden sm:flex bg-green-600 hover:bg-green-700 text-white"
             >
