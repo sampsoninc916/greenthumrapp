@@ -23,7 +23,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl overflow-y-auto">
+      <DialogContent className="max-w-4xl h-screen md:h-[83vh] overflow-y-auto flex flex-col justify-start">
         <DialogHeader className="flex flex-row items-center justify-between p-0">
           <div />
           <Button 
@@ -36,7 +36,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
           </Button>
         </DialogHeader>
 
-        <div className="grid md:grid-cols-1 gap-6">
+        <div className="grid md:grid-cols-1 gap-6 flex-1">
           {/* Images */}
           {/* <div className="space-y-4">
             <div className="aspect-square overflow-hidden rounded-lg bg-gray-100">

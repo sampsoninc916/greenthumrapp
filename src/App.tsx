@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { PlantCard } from './components/PlantCard';
-import { PlantDetailModal } from './components/PlantDetailModal';
 import { CreateNewPlantModal } from './components/CreateNewPlantModal';
 import { Button } from './components/ui/button';
 import { SlidersHorizontal, Grid3X3, List } from 'lucide-react';
@@ -205,12 +204,6 @@ const App = () => {
     });
   }, [searchQuery, filters]);
 
-  const handlePlantClick = (plantId: string) => {
-    const plant = mockPlants.find(p => p.id === plantId);
-    setSelectedPlant(plant ?? null);
-    setIsPlantModalOpen(true);
-  };
-
   const handleAddListing = () => {
     // In a real app, this would open a form to add a new listing
     setIsCreateNewPlantModalOpen(true);
@@ -301,7 +294,6 @@ const App = () => {
                   category={plant.category}
                   seller={plant.seller}
                   condition={plant.condition}
-                  onClick={handlePlantClick}
                 />
               ))}
             </div>
@@ -326,11 +318,6 @@ const App = () => {
         </main>
       </div>
 
-      <PlantDetailModal
-        plant={selectedPlant}
-        isOpen={isPlantModalOpen}
-        onClose={() => setIsPlantModalOpen(false)}
-      />
       <CreateNewPlantModal
         isOpen={isCreateNewPlantModalOpen}
         onClose={() => setIsCreateNewPlantModalOpen(false)}
