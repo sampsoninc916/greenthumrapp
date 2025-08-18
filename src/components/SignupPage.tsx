@@ -7,6 +7,7 @@ import { Chrome } from "lucide-react";
 import { Amplify } from 'aws-amplify';
 import { signUp, confirmSignUp, signIn } from 'aws-amplify/auth';
 import { useNavigate, Link } from "react-router-dom";
+import { v4 as uuidv4 } from 'uuid';
 
 Amplify.configure({
   Auth: {
@@ -30,6 +31,17 @@ export function SignupPage() {
 
   const handleSignup = async () => {
     try {
+      const userId = uuidv4(); // Generate a new UUID for the user
+      fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId })
+      }).then(() => {
+          return;
+      });
       await signUp({
         username: userName,
         password: password,
