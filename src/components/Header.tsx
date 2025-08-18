@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Link } from 'react-router-dom';
-import GreenThumrLogo from './assets/GreenThumrLogoV1.png'; // Adjust the path as necessary
+import GreenThumrLogo from './assets/ThumrCircleLogo.png'; // Adjust the path as necessary
 
 interface HeaderProps {
   onSearch: (query: string) => void;
