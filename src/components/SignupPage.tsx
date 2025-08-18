@@ -31,17 +31,6 @@ export function SignupPage() {
 
   const handleSignup = async () => {
     try {
-      const userId = uuidv4(); // Generate a new UUID for the user
-      fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default', {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json, text/plain, */*',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId })
-      }).then(() => {
-          return;
-      });
       await signUp({
         username: userName,
         password: password,
@@ -61,6 +50,17 @@ export function SignupPage() {
       await confirmSignUp({ username: userName, confirmationCode: code });
       setConfirm(true);
       setSuccess(false);
+      const userId = uuidv4(); // Generate a new UUID for the user
+      fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/writeUsersData', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId })
+      }).then(() => {
+          return;
+      });
     } catch (err: any) {
       setError(err.message);
     }
@@ -70,7 +70,7 @@ export function SignupPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-green-600 px-4 py-4 flex items-center">
-        <h1 className="text-white text-lg" style={{ color: '#ffffff', fontWeight: 500 }}>
+        <h1 className="cursor-pointer text-white text-lg" style={{ color: '#ffffff', fontWeight: 500 }} onClick={() => navigate('/')}>
           Thumr
         </h1>
       </div>
