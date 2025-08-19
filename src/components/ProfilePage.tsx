@@ -219,7 +219,7 @@ export function ProfilePage() {
                       category={listing.category}
                       seller={listing.seller}
                       condition={listing.condition}
-                      onClick={() => {}}
+                      // onClick={() => {}}
                     />
                   </Card>
                 ))
@@ -246,7 +246,7 @@ export function ProfilePage() {
                       category={listing.category}
                       seller={listing.seller}
                       condition={listing.condition}
-                      onClick={() => {}}
+                      // onClick={() => {}}
                     />
                   </Card>
                 ))

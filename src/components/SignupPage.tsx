@@ -54,13 +54,14 @@ export function SignupPage() {
       fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/writeUsersData', {
         method: 'POST',
         headers: {
-            'Accept': 'application/json, text/plain, */*',
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ userId })
-      }).then(() => {
-          return;
+      }).then((response) => {
+        return response.json();
+      }).then((data) => {
+        console.log(data);
+          // return;
       });
     } catch (err: any) {
       setError(err.message);
