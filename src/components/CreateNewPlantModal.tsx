@@ -2,23 +2,163 @@ import { useState } from 'react';
 import { Image } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
 import { Button } from './ui/button';
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
+// import * as fs from "fs"; // Removed: 'fs' is not available in browser/React
 
 interface CreateNewPlantModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type UploadPlan = { file: File; url: string; headers: Record<string,string> };
+
 export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProps) {
   const [files, setFiles] = useState<File[]>([]);
+  const [plantName, setPlantName] = useState('');
+  const [price, setPrice] = useState(0);
+  const [location, setLocation] = useState('');
+  const [category, setCategory] = useState('');
+  const [condition, setCondition] = useState('');
+  const [description, setDescription] = useState('');
+  const [careInstructions, setCareInstructions] = useState('');
+  const [potSize, setPotSize] = useState('');
+  const [height, setHeight] = useState('');
+  const [resultsList, setResultsList] = useState<{ file: string; ok: boolean }[]>([]);
   const maxFileSize = 50 * 1024 * 1024; // 50MB
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  if (!e.target.files) return;
+    if (!e.target.files) return;
     const selectedFiles = Array.from(e.target.files);
     // Filter files over 50MB
     const validFiles = selectedFiles.filter(file => file.size <= maxFileSize);
-    setFiles(validFiles);
-    console.log(files);
+    // console.log(validFiles);
+    setFiles(prevFiles => [...prevFiles, ...validFiles]);
+    // console.log(files);
+  };
+
+  // const uploadToDatabase = async ()
+
+  const handleSubmit = async (bucket: string, presignApiUrl: string) => {
+    if (files.length === 0) return;
+    const presignBody = {
+      bucket,
+      files: files.map(f => ({ fileName: f.name, contentType: f.type || "application/octet-stream" })),
+      plantData: {
+        name: plantName,
+        price,
+        location,
+        category,
+        condition,
+        description,
+        careInstructions,
+        potSize,
+        height
+      }
+    };
+    console.log(presignBody)
+
+    const res = await fetch(presignApiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(presignBody),
+    });
+    if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
+    const data: { uploads: { fileName: string; url: string; headers: Record<string,string> }[] } = await res.json();
+    // console.log(data);
+
+    const plan: UploadPlan[] = files.map((file) => {
+      // console.log()
+      const entry = data.uploads.find((u: { fileName: string; }) => u.fileName === file.name)!;
+      return { file, url: entry.url, headers: entry.headers };
+    });
+
+    const results = await Promise.all(plan.map(async ({ file, url, headers }) => {
+      const put = await fetch(url, { method: "PUT", headers, body: file });
+      if (!put.ok) throw new Error(`upload failed for ${file.name}: ${put.status}`);
+      return { file: file.name, ok: true, attributes: file };
+    }));
+
+    // console.log(results);
+    // if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
+
+    // const data: { uploads: { fileName: string; url: string; headers: Record<string,string> }[] } = await res.json();
+
+    // const plan: UploadPlan[] = files.map((file) => {
+    //   const entry = data.uploads.find(u => u.fileName === file.name)!;
+    //   return { file, url: entry.url, headers: entry.headers };
+    // });
+
+    // const results = await Promise.all(plan.map(async ({ file, url, headers }) => {
+    //   const put = await fetch(url, { method: "PUT", headers, body: file });
+    //   if (!put.ok) throw new Error(`upload failed for ${file.name}: ${put.status}`);
+    //   return { file: file.name, ok: true };
+    // }));
+    // setResultsList(results);
+    // console.log(resultsList);
+    // console.log(files);
+    // const reader = new FileReader();
+    // files.forEach((file) => {
+    //   const test = reader.readAsDataURL(file);
+    //   console.log(test);
+    // });
+    // let formData ={
+    //   name: plantName,
+    //   price,
+    //   location,
+    //   category,
+    //   condition,
+    //   description,
+    //   careInstructions,
+    //   potSize,
+    //   height,
+    //   images: []
+    // }
+    // const formData = new FormData();
+    // formData.append('name', plantName);
+    // formData.append('price', price.toString());
+    // formData.append('location', location);
+    // formData.append('category', category);
+    // formData.append('condition', condition);
+    // formData.append('description', description);
+    // formData.append('careInstructions', careInstructions);
+    // formData.append('potSize', potSize);
+    // formData.append('height', height);
+    // files.forEach(file => {
+    //   formData.append('images', file);
+    // });
+
+    // try {
+      // console.log(formData);
+      // const reader = new FileReader();
+      // reader.onload = async () => {
+      //   const base64data = reader.result?.toString().split(',')[1] || '';
+      //   formData.images.push(base64data);
+      //   console.log(formData.images);
+      // const response = await fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/writePlantsData', {
+      //   method: 'POST',
+      //   body: JSON.stringify(formData),
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      // });
+      // const data = await response.json();
+      // console.log(data);
+      // };
+      
+      // formData.images.forEach((image) => {
+      //   reader.readAsDataURL(image);
+      // });
+
+      // if (!response.ok) {
+      //   throw new Error('Failed to upload images');
+      // }
+
+      // Handle successful upload
+      onClose();
+    // } catch (error) {
+    //   console.error(error);
+    // }
   };
 
   return (
@@ -30,7 +170,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
             variant="ghost" 
             size="sm" 
             onClick={onClose}
-            className="h-6 w-8 p-0"
+            className="hidden h-6 w-8 p-0"
           >
             {/* <X className="h-4 w-4" /> */}
           </Button>
@@ -75,8 +215,8 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
             {/* Header */}
             <div className="space-y-2">
               <Image className="w-full m-auto h-64" />
-              <div className="flex items-center justify-between border border-black rounded-md">
-                  <label htmlFor="file_input" className="inline w-full text-sm font-medium text-black bg-green-600 rounded-md p-2 text-center">Upload Image(s)</label>
+              <div className="flex items-center justify-between rounded-md">
+                  <label htmlFor="file_input" className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center">Upload Image(s)</label>
                   <input
                     type="file"
                     id="file_input"
@@ -85,6 +225,9 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                     multiple
                     onChange={handleFileChange}
                   />
+              </div>
+              <div className="flex items-center justify-center">
+                <span className="text-black">{files && files.length > 0 && files.length === 1 ? `${files.length} image uploaded` : `${files.length} images uploaded`}</span>
               </div>
               
               {/* <div className="flex items-center gap-2">
@@ -104,30 +247,35 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
             </div>
 
             {/* <Separator /> */}
-            <div className="flex items-center justify-between border border-black rounded-md">
+            <div className="flex w-full items-center justify-between rounded-md">
               <input
                 type="text"
-                className="inline-block p-2"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
                 placeholder="Plant Name"
+                onChange={(e) => setPlantName(e.target.value)}
               />
             </div>
-            <div className="flex items-center justify-between border border-black rounded-md">
+            <div className="flex w-full items-center justify-between rounded-md">
               <input
                 type="number"
-                className="inline-block p-2 w-full"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
                 placeholder="Price"
+                onChange={(e) => setPrice(Number(e.target.value))}
               />
             </div>
-            <div className="flex items-center justify-between border border-black rounded-md">
+            <div className="flex w-full items-center justify-between rounded-md">
               <input
                 type="text"
-                className="inline-block p-2"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
                 placeholder="Location"
+                onChange={(e) => setLocation(e.target.value)}
               />
             </div>
-            <div className="flex items-center justify-between border border-black rounded-md">
+            <div className="flex w-full items-center justify-between rounded-md">
               <select
-                className="inline-block p-2 w-full"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
               >
                 <option value="">Select Category</option>
                 <option value="houseplants">Houseplants</option>
@@ -139,43 +287,48 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                 <option value="tools">Tools & Supplies</option>
               </select>
             </div>
-            <div className="flex items-center justify-between border border-black rounded-md">
+            <div className="flex w-full items-center justify-between rounded-md">
               <input
                 type="text"
-                className="inline-block p-2"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
                 placeholder="Condition"
+                onChange={(e) => setCondition(e.target.value)}
               />
             </div>
-            <div className="flex items-center justify-between border border-black rounded-md">
+            <div className="flex w-full items-center justify-between rounded-md">
               <input
                 type="text"
-                className="inline-block p-2"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
                 placeholder="Description"
+                onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <div className="flex items-center justify-between border border-black rounded-md">
+            <div className="flex w-fullitems-center justify-between rounded-md">
               <input
                 type="text"
-                className="inline-block p-2"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
                 placeholder="Care Instructions"
+                onChange={(e) => setCareInstructions(e.target.value)}
               />
             </div>
-            <div className="flex items-center justify-between border border-black rounded-md">
+            <div className="flex w-full items-center justify-between rounded-md">
               <input
                 type="text"
-                className="inline-block p-2"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
                 placeholder="Pot Size"
+                onChange={(e) => setPotSize(e.target.value)}
               />
             </div>
-            <div className="flex items-center justify-between border border-black rounded-md">
+            <div className="flex w-full items-center justify-between rounded-md">
               <input
                 type="text"
-                className="inline-block p-2"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
                 placeholder="Height"
+                onChange={(e) => setHeight(e.target.value)}
               />
             </div>
-            <div className="flex items-center justify-between border border-black rounded-md">
-              <button className="inline w-full text-sm font-medium text-black bg-green-600 rounded-md p-2 text-center">
+            <div className="flex w-full items-center justify-between rounded-md">
+              <button className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center" onClick={() => handleSubmit('dev.thumr.com', 'https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/writePlantsData')}>
                 <span>Add Plant</span>
               </button>
             </div>
