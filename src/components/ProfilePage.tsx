@@ -2,18 +2,7 @@ import { useState, useEffect, ChangeEvent } from "react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { PlantCard } from "./PlantCard";
-
-interface PlantListing {
-  id: string;
-  name: string;
-  price: number;
-  image: string;
-  location: string;
-  category: string;
-  condition: string;
-  seller: string;
-  description: string;
-}
+import { Plant } from "../interfaces/Plant";
 
 interface Review {
   rating: number;
@@ -26,8 +15,8 @@ interface User {
   joinedDate: string;
   profilePic: string;
   description: string;
-  plantListings: PlantListing[];
-  savedListings: PlantListing[];
+  plantListings: Plant[];
+  savedListings: Plant[];
   subscription: string;
   // reviews: Review[];
 }
@@ -208,17 +197,10 @@ export function ProfilePage() {
             <h3 className="text-lg font-medium text-green-700 mb-4">My Listings</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {user.plantListings && user.plantListings.length > 0 ? (
-                user.plantListings.map((listing: any) => (
+                user.plantListings.map((listing: Plant) => (
                   <Card key={listing.id}>
                     <PlantCard
-                      id={listing.id}
-                      name={listing.name}
-                      price={listing.price}
-                      image={listing.image}
-                      location={listing.location}
-                      category={listing.category}
-                      seller={listing.seller}
-                      condition={listing.condition}
+                      plant={listing}
                       // onClick={() => {}}
                     />
                   </Card>
@@ -235,17 +217,10 @@ export function ProfilePage() {
             <h3 className="text-lg font-medium text-green-700 mb-4">Saved Listings</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {user.savedListings && user.savedListings.length > 0 ? (
-                user.savedListings.map((listing: any) => (
+                user.savedListings.map((listing: Plant) => (
                   <Card key={listing.id}>
                     <PlantCard
-                      id={listing.id}
-                      name={listing.name}
-                      price={listing.price}
-                      image={listing.image}
-                      location={listing.location}
-                      category={listing.category}
-                      seller={listing.seller}
-                      condition={listing.condition}
+                      plant={listing}
                       // onClick={() => {}}
                     />
                   </Card>

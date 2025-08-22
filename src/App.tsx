@@ -51,7 +51,7 @@ const mockPlants = [
     id: '3',
     name: 'Snake Plant Variety Pack',
     price: 30,
-    images: ['https://images.unsplash.com/photo-1572688484438-313a6e50c333?w=400'],
+    images: ['https://images.unsplash.com/photo-1572688484438-313a6e50c333?w=400', 'https://images.unsplash.com/photo-1611909023032-2d6b3134ecba?w=400'],
     location: 'Austin, TX',
     category: 'Houseplants',
     seller: 'Plant Lady Co.',
@@ -285,15 +285,7 @@ const App = () => {
             `}>
               {filteredPlants.map((plant) => (
                 <PlantCard
-                  key={plant.id}
-                  id={plant.id}
-                  name={plant.name}
-                  price={plant.price}
-                  image={plant.images[0]}
-                  location={plant.location}
-                  category={plant.category}
-                  seller={plant.seller}
-                  condition={plant.condition}
+                  plant={plant}
                 />
               ))}
             </div>

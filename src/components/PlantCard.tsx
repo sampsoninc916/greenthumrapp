@@ -5,29 +5,16 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { PlantDetailModal } from './PlantDetailModal';
+import { Plant } from '../interfaces/Plant';
 
 interface PlantCardProps {
-  id: string;
-  name: string;
-  price: number;
-  image: string;
-  location: string;
-  category: string;
-  seller: string;
-  condition: string;
+  plant: Plant;
   isLiked?: boolean;
   onLike?: (id: string) => void;
 }
 
 export function PlantCard({ 
-  id, 
-  name, 
-  price, 
-  image, 
-  location, 
-  category, 
-  seller, 
-  condition, 
+  plant,
   isLiked = false, 
   onLike
 }: PlantCardProps) {
@@ -37,7 +24,7 @@ export function PlantCard({
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
     setLiked(!liked);
-    onLike?.(id);
+    onLike?.(plant.id);
   };
 
   const handleClick = () => {
@@ -54,25 +41,6 @@ export function PlantCard({
     }
   };
 
-  // Mock plant object for modal (add more fields if needed)
-  const plant = {
-    id,
-    name,
-    price,
-    images: [image],
-    location,
-    category,
-    seller,
-    sellerAvatar: "",
-    sellerRating: 5,
-    condition,
-    description: "",
-    careInstructions: "",
-    potSize: "",
-    height: "",
-    postedDate: "",
-  };
-
   return (
     <>
       <Card 
@@ -81,8 +49,8 @@ export function PlantCard({
       >
         <div className="relative aspect-square overflow-hidden">
           <ImageWithFallback
-            src={image}
-            alt={name}
+            src={plant.images[0]}
+            alt={plant.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           />
           <Button
@@ -96,10 +64,10 @@ export function PlantCard({
             />
           </Button>
           <Badge 
-            className={`absolute top-2 left-2 ${getConditionColor(condition)}`}
+            className={`absolute top-2 left-2 ${getConditionColor(plant.condition)}`}
             variant="secondary"
           >
-            {condition}
+            {plant.condition}
           </Badge>
         </div>
         
@@ -107,26 +75,26 @@ export function PlantCard({
           <div className="space-y-2">
             <div className="flex items-start justify-between">
               <h3 className="line-clamp-2 group-hover:text-green-600 transition-colors">
-                {name}
+                {plant.name}
               </h3>
             </div>
             
             <div className="flex items-center gap-1 text-muted-foreground">
               <MapPin className="h-3 w-3" />
-              <span className="text-sm">{location}</span>
+              <span className="text-sm">{plant.location}</span>
             </div>
             
             <div className="flex items-center justify-between">
               <span className="font-medium text-green-600">
-                ${price}
+                ${plant.price}
               </span>
               <Badge variant="outline" className="text-xs">
-                {category}
+                {plant.category}
               </Badge>
             </div>
             
             <p className="text-sm text-muted-foreground">
-              by {seller}
+              by {plant.seller}
             </p>
           </div>
         </CardContent>

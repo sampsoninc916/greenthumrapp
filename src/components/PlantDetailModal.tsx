@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
 import { Button } from './ui/button';
@@ -7,32 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { StarRating } from "./StarRating";
-
-interface Plant {
-  id: string;
-  name: string;
-  price: number;
-  images: string[];
-  location: string;
-  category: string;
-  seller: string;
-  sellerAvatar: string;
-  sellerRating: number;
-  condition: string;
-  description: string;
-  careInstructions: string;
-  potSize: string;
-  height: string;
-  postedDate: string;
-}
-
-interface Review {
-  id: string;
-  rating: number;
-  comment: string;
-  reviewer: string;
-  date: string;
-}
+import { EditListingScreen } from './EditListingScreen';
+import { Plant } from '../interfaces/Plant';
 
 interface PlantDetailModalProps {
   plant: Plant | null;
@@ -48,6 +24,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [isEditListingScreenOpen, setIsEditListingScreenOpen] = useState(false);
+  const [plantName, setPlantName] = useState(plant ? plant.name : "");
 
   // const [reviewFormFields, setReviewFormFields] = useState<Review[]>([]);
   const [showBackAlert, setShowBackAlert] = useState(false);
@@ -88,6 +65,8 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
   const handleListingSave = () => {
     setIsEditListingScreenOpen(false);
   };
+
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -272,178 +251,11 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
 
       {/* Edit Listing Screen */}
       {(!isReviewScreenOpen && isEditListingScreenOpen) && (
-        <DialogContent className="max-w-4xl h-screen md:h-[83vh] overflow-y-auto">
-          <div className="space-y-12">
-            <DialogHeader className="flex flex-row items-center justify-between p-0">
-              <h2 className="text-xl font-semibold">Edit Listing</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="h-6 w-8 p-0"
-              >
-                {/* <X className="h-4 w-4" /> */}
-              </Button>
-            </DialogHeader>
-
-            <div className="grid md:grid-cols-1 gap-6">
-              {/* Images */}
-              <div className="space-y-4">
-                <div className="aspect-square overflow-hidden rounded-lg bg-gray-100">
-                  <ImageWithFallback
-                    src={plant.images[currentImageIndex]}
-                    alt={plant.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                {plant.images.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto">
-                    {plant.images.map((image, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setCurrentImageIndex(index)}
-                        className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 ${index === currentImageIndex
-                          ? 'border-green-500'
-                          : 'border-gray-200'
-                          }`}
-                      >
-                        <ImageWithFallback
-                          src={image}
-                          alt={`${plant.name} ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Editable Details */}
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Name</label>
-                    <input
-                      type="text"
-                      value={plant.name}
-                      onChange={() => {}}
-                      className="w-full p-2 border rounded"
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Price</label>
-                    <input
-                      type="number"
-                      value={plant.price}
-                      onChange={() => {}}
-                      className="w-full p-2 border rounded"
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Location</label>
-                    <input
-                      type="text"
-                      value={plant.location}
-                      onChange={() => {}}
-                      className="w-full p-2 border rounded"
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Category</label>
-                    <input
-                      type="text"
-                      value={plant.category}
-                      onChange={() => {}}
-                      className="w-full p-2 border rounded"
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Condition</label>
-                    <input
-                      type="text"
-                      value={plant.condition}
-                      onChange={() => {}}
-                      className="w-full p-2 border rounded"
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Pot Size</label>
-                    <input
-                      type="text"
-                      value={plant.potSize}
-                      onChange={() => {}}
-                      className="w-full p-2 border rounded"
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Height</label>
-                    <input
-                      type="text"
-                      value={plant.height}
-                      onChange={() => {}}
-                      className="w-full p-2 border rounded"
-                      disabled
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
-                  <textarea
-                    value={plant.description}
-                    onChange={() => {}}
-                    className="w-full p-2 border rounded"
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Care Instructions</label>
-                  <textarea
-                    value={plant.careInstructions}
-                    onChange={() => {}}
-                    className="w-full p-2 border rounded"
-                    rows={2}
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Seller Info */}
-              <div className="flex items-center gap-3">
-                <Avatar>
-                  <AvatarImage src={plant.sellerAvatar} />
-                  <AvatarFallback>
-                    {plant.seller[0] || "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{plant.seller}</p>
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm text-muted-foreground">
-                      {plant.sellerRating} rating
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-8">
-              <Button variant="outline" onClick={() => setIsEditListingScreenOpen(false)}>
-                Cancel
-              </Button>
-              <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleListingSave}>
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
+        <EditListingScreen
+          plant={plant}
+          onCancel={() => setIsEditListingScreenOpen(false)}
+          onSave={handleListingSave}
+        />
       )}
 
       {/* Review Screen */}
