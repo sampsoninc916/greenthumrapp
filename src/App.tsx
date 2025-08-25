@@ -285,6 +285,7 @@ const App = () => {
             `}>
               {filteredPlants.map((plant) => (
                 <PlantCard
+                  key={plant.id}
                   plant={plant}
                 />
               ))}

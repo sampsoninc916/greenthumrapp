@@ -31,6 +31,12 @@ export function PlantCard({
     setIsModalOpen(true);
   };
 
+  const debugCode = () => {
+    console.log("Debugging PlantCard");
+    console.log("Plant:", plant);
+    console.log("Liked:", liked);
+  };
+
   const getConditionColor = (condition: string) => {
     switch (condition) {
       case 'New': return 'bg-green-100 text-green-800';
@@ -49,7 +55,7 @@ export function PlantCard({
       >
         <div className="relative aspect-square overflow-hidden">
           <ImageWithFallback
-            src={plant.images[0]}
+            src={Array.isArray(plant.images) ? plant.images[0] : plant.images}
             alt={plant.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           />

@@ -31,8 +31,8 @@ function parseUserData(data: any) {
     profilePic: data.profilePic || "",
     description: data.plantListings ? [data.plantListings][0]?.description || "" : "",
     subscription: data.subscription || "Free Plan",
-    plantListings: data.plantListings && Array.isArray(data.plantListings) && data.plantListings.length > 1 ? [...data.plantListings] : ([data.plantListings && !Array.isArray(data.plantListings) ? data.plantListings : []]),
-    savedListings: data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 1 ? [...data.savedListings] : ([data.savedListings && !Array.isArray(data.savedListings) ? data.savedListings : []]),
+    plantListings: data.plantListings && Array.isArray(data.plantListings) && data.plantListings.length > 0 ? [...data.plantListings] : [],
+    savedListings: data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 0 ? [...data.savedListings] : [],
   };
 }
 
@@ -121,6 +121,10 @@ export function ProfilePage() {
     setEditAvatar(user.profilePic);
     setIsEditing(false);
   };
+
+  useEffect(() => {
+    console.log("Saved Listings:", user.savedListings);
+  }, [user.savedListings]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center py-8 px-4">

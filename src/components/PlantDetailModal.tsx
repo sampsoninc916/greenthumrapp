@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -74,6 +74,9 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
       {/* Default Plant Detail Listing Screen */}
       {(!isReviewScreenOpen && !isEditListingScreenOpen) && (
         <DialogContent className="max-w-4xl h-screen md:h-[83vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{plant.name}</DialogTitle>
+          </DialogHeader>
           <div className="space-y-12">
             <DialogHeader className="flex flex-row items-center justify-between p-0">
               <div />
@@ -92,13 +95,13 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
               <div className="space-y-4">
                 <div className="aspect-square overflow-hidden rounded-lg bg-gray-100">
                   <ImageWithFallback
-                    src={plant.images[currentImageIndex]}
+                    src={Array.isArray(plant.images) ? plant.images[currentImageIndex] : plant.images}
                     alt={plant.name}
                     className="w-full h-full object-cover"
                   />
                 </div>
 
-                {plant.images.length > 1 && (
+                {Array.isArray(plant.images) && plant.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto">
                     {plant.images.map((image, index) => (
                       <button
@@ -261,6 +264,9 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
       {/* Review Screen */}
       {isReviewScreenOpen && (
         <DialogContent className={"max-w-4xl h-screen md:h-[83vh] overflow-y-auto"}>
+          <DialogHeader>
+            <DialogTitle>{plant.name}</DialogTitle>
+          </DialogHeader>
           <div className="space-y-12">
             <DialogHeader className="flex flex-row items-center justify-between p-0">
               <Button
