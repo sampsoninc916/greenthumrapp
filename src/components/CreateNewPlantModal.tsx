@@ -58,11 +58,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     };
     console.log(presignBody)
 
-    const res = await fetch(presignApiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(presignBody),
-    });
+    const res = await fetch(`${presignApiUrl}?data=${encodeURIComponent(JSON.stringify(presignBody))}`);
     if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
     const data: { uploads: { fileName: string; url: string; headers: Record<string,string> }[] } = await res.json();
     // console.log(data);
