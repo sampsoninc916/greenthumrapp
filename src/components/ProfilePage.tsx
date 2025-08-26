@@ -3,22 +3,11 @@ import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { PlantCard } from "./PlantCard";
 import { Plant } from "../interfaces/Plant";
-
+import { User } from "../interfaces/User";
+ 
 interface Review {
   rating: number;
   review: string;
-}
-
-interface User {
-  userId: string;
-  fullName: string;
-  joinedDate: string;
-  profilePic: string;
-  description: string;
-  plantListings: Plant[];
-  savedListings: Plant[];
-  subscription: string;
-  // reviews: Review[];
 }
 
 // Helper to parse DynamoDB JSON format

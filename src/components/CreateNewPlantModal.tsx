@@ -2,9 +2,6 @@ import { useState } from 'react';
 import { Image } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
 import { Button } from './ui/button';
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { Upload } from "@aws-sdk/lib-storage";
-// import * as fs from "fs"; // Removed: 'fs' is not available in browser/React
 
 interface CreateNewPlantModalProps {
   isOpen: boolean;

@@ -11,24 +11,7 @@ import {
     CarouselPrevious,
     CarouselNext,
 } from "./ui/carousel";
-
-interface Plant {
-    id: string;
-    name: string;
-    price: number;
-    images: string[];
-    location: string;
-    category: string;
-    seller: string;
-    sellerAvatar: string;
-    sellerRating: number;
-    condition: string;
-    description: string;
-    careInstructions: string;
-    potSize: string;
-    height: string;
-    postedDate: string;
-}
+import { Plant } from '../interfaces/Plant';
 
 interface EditListingScreenProps {
     plant: Plant;
