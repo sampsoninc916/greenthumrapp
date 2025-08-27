@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -19,7 +19,7 @@ interface PlantDetailModalProps {
 export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
-  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768 ? true : false);
+  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
   const [isReviewScreenOpen, setIsReviewScreenOpen] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
@@ -28,6 +28,36 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
 
   // const [reviewFormFields, setReviewFormFields] = useState<Review[]>([]);
   const [showBackAlert, setShowBackAlert] = useState(false);
+
+  // Handle window resize with cleanup
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileView(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // Sync plantName when plant prop changes
+  useEffect(() => {
+    setPlantName(plant ? plant.name : "");
+  }, [plant]);
+
+  // Reset all states when modal closes
+  const handleClose = () => {
+    setCurrentImageIndex(0);
+    setIsReviewScreenOpen(false);
+    setIsEditListingScreenOpen(false);
+    setReviewRating(0);
+    setReviewComment("");
+    setShowBackAlert(false);
+    onClose();
+  };
 
   if (!plant) return null;
 
@@ -62,14 +92,16 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
     setShowBackAlert(false);
   };
 
-  const handleListingSave = () => {
+  const handleListingSave = (updatedPlant: Plant) => {
+    // TODO: Handle the updated plant data (e.g., save to backend)
+    console.log('Updated plant:', updatedPlant);
     setIsEditListingScreenOpen(false);
   };
 
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
 
       {/* Default Plant Detail Listing Screen */}
       {(!isReviewScreenOpen && !isEditListingScreenOpen) && (
@@ -83,7 +115,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
               <Button
                 variant="white"
                 size="sm"
-                onClick={onClose}
+                onClick={handleClose}
                 className="h-6 w-8 p-0 hidden"
               >
                 {/* <X className="h-4 w-4" /> */}
@@ -280,7 +312,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={onClose}
+                onClick={handleClose}
                 className="h-6 w-8 p-0 hidden"
               >
                 {/* <X className="h-4 w-4" /> */}
