@@ -20,10 +20,6 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
     e.preventDefault();
     onSearch(searchQuery);
   };
-  // const handleAddListing = (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   onCreateNewPlant(createNewPlant);
-  // };
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-green-100">
@@ -40,9 +36,6 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
           </Button>
           <div className="flex items-center gap-2">
             <img src={GreenThumrLogo} alt="GreenThumr Logo" className="h-12 w-12" />
-            {/* <div className="gray-background p-2 rounded-lg">
-              
-            </div> */}
             <div className="hidden sm:block">
               <h1 className="text-xl oxygen-bold text-green-800">Thumr</h1>
               <p className="text-xs text-green-600">Buy • Sell • Trade</p>

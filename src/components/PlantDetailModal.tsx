@@ -25,8 +25,6 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
   const [reviewComment, setReviewComment] = useState("");
   const [isEditListingScreenOpen, setIsEditListingScreenOpen] = useState(false);
   const [plantName, setPlantName] = useState(plant ? plant.name : "");
-
-  // const [reviewFormFields, setReviewFormFields] = useState<Review[]>([]);
   const [showBackAlert, setShowBackAlert] = useState(false);
 
   // Handle window resize with cleanup
@@ -365,89 +363,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                     Submit
                   </Button>
                 </div>
-                {/* <div className="flex items-center gap-1 text-muted-foreground">
-                    <MapPin className="h-4 w-4" />
-                    <span>{plant.location}</span>
-                  </div> */}
               </div>
-
-              {/* <Separator /> */}
-
-              {/* Seller Info */}
-              {/* <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={plant.sellerAvatar} />
-                      <AvatarFallback>
-                        <User className="h-4 w-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{plant.seller}</p>
-                      <div className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                        <span className="text-sm text-muted-foreground">
-                          {plant.sellerRating} rating
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-green-600" />
-                    <span className="text-sm text-green-600">Verified Seller</span>
-                  </div>
-                </div>
-
-                <Separator /> */}
-
-              {/* Plant Details */}
-              {/* <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Pot Size:</span>
-                      <p className="font-medium">{plant.potSize}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Height:</span>
-                      <p className="font-medium">{plant.height}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-muted-foreground">Description:</span>
-                    <p className="mt-1">{plant.description}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-muted-foreground">Care Instructions:</span>
-                    <p className="mt-1">{plant.careInstructions}</p>
-                  </div>
-                </div>
-
-                <Separator /> */}
-
-              {/* Actions */}
-              {/* <div className="space-y-3">
-                  <Button className="w-full bg-green-600 hover:bg-green-700">
-                    Contact Seller
-                  </Button>
-                  <Button className="w-full bg-green-600 hover:bg-green-700">
-                    Add Review
-                  </Button>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline">
-                      <MessageCircle className="h-4 w-4 mr-2" />
-                      Message
-                    </Button>
-                    <Button variant="outline">
-                      Make Offer
-                    </Button>
-                  </div>
-                </div> */}
-
-              {/* <p className="text-xs text-muted-foreground">
-                  Posted {plant.postedDate}
-                </p> */}
             </div>
           </div>
         </DialogContent>

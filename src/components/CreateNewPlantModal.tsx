@@ -21,7 +21,6 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   const [careInstructions, setCareInstructions] = useState('');
   const [potSize, setPotSize] = useState('');
   const [height, setHeight] = useState('');
-  const [resultsList, setResultsList] = useState<{ file: string; ok: boolean }[]>([]);
   const maxFileSize = 50 * 1024 * 1024; // 50MB
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,12 +28,8 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     const selectedFiles = Array.from(e.target.files);
     // Filter files over 50MB
     const validFiles = selectedFiles.filter(file => file.size <= maxFileSize);
-    // console.log(validFiles);
     setFiles(prevFiles => [...prevFiles, ...validFiles]);
-    // console.log(files);
   };
-
-  // const uploadToDatabase = async ()
 
   const handleSubmit = async (bucket: string, presignApiUrl: string) => {
     if (files.length === 0) return;
