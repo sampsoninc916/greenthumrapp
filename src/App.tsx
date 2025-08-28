@@ -1,17 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { PlantCard } from './components/PlantCard';
 import { CreateNewPlantModal } from './components/CreateNewPlantModal';
 import { Button } from './components/ui/button';
 import { SlidersHorizontal, Grid3X3, List } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 import './index.css';
 import './App.css';
+import { Plant } from './interfaces/Plant';
+import { set } from 'react-hook-form';
 
 // Mock data for plants
 const mockPlants = [
   {
-    id: '1',
+    id: uuidv4(),
     name: 'Monstera Deliciosa',
     price: 45,
     images: [
@@ -31,7 +34,7 @@ const mockPlants = [
     postedDate: '2 days ago'
   },
   {
-    id: '2',
+    id: uuidv4(),
     name: 'Fiddle Leaf Fig',
     price: 75,
     images: ['https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'],
@@ -48,7 +51,7 @@ const mockPlants = [
     postedDate: '1 day ago'
   },
   {
-    id: '3',
+    id: uuidv4(),
     name: 'Snake Plant Variety Pack',
     price: 30,
     images: ['https://images.unsplash.com/photo-1572688484438-313a6e50c333?w=400', 'https://images.unsplash.com/photo-1611909023032-2d6b3134ecba?w=400'],
@@ -65,7 +68,7 @@ const mockPlants = [
     postedDate: '3 days ago'
   },
   {
-    id: '4',
+    id: uuidv4(),
     name: 'Lavender Plant',
     price: 15,
     images: ['https://images.unsplash.com/photo-1611909023032-2d6b3134ecba?w=400'],
@@ -82,7 +85,7 @@ const mockPlants = [
     postedDate: '5 days ago'
   },
   {
-    id: '5',
+    id: uuidv4(),
     name: 'Succulent Collection',
     price: 25,
     images: ['https://images.unsplash.com/photo-1459156212016-c812468e2115?w=400'],
@@ -99,7 +102,7 @@ const mockPlants = [
     postedDate: '1 week ago'
   },
   {
-    id: '6',
+    id: uuidv4(),
     name: 'Bird of Paradise',
     price: 120,
     images: ['https://images.unsplash.com/photo-1509423350716-97f2360af543?w=400'],
@@ -116,7 +119,7 @@ const mockPlants = [
     postedDate: '4 days ago'
   },
   {
-    id: '7',
+    id: uuidv4(),
     name: 'Herb Garden Starter Kit',
     price: 35,
     images: ['https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'],
@@ -133,7 +136,7 @@ const mockPlants = [
     postedDate: '2 days ago'
   },
   {
-    id: '8',
+    id: uuidv4(),
     name: 'Pink Orchid',
     price: 40,
     images: ['https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400'],
@@ -155,9 +158,11 @@ const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCreateNewPlantModalOpen, setIsCreateNewPlantModalOpen] = useState(false);
-  type Plant = typeof mockPlants[number];
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  // const [filteredPlants, setFilteredPlants] = useState<Plant[]>(mockPlants);
   const [viewMode, setViewMode] = useState('grid');
   const [filters, setFilters] = useState({
     categories: [],
@@ -165,12 +170,33 @@ const App = () => {
     condition: '',
     location: 'anywhere'
   });
-  // const [jwt, setJwt] = useState<string | null>(null);
-  // const [user, setUser] = useState<any>(null); // Replace with your user type
+  const [plantsData, setPlantsData] = useState<Plant[]>([]);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true); // Set loading state before fetching
+        const response = await fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/readPlantsData');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        setPlantsData(result); // Set data after successful fetch
+      } catch (err) {
+        setError(true); // Set error state if something goes wrong
+      } finally {
+        setLoading(false); // Always turn off loading state
+      }
+    };
 
-  // Filter plants based on search and filters
+    fetchData(); // Call the async function
+  }, []);
+
+  // useEffect(() => {
+  //   setPlantsData(plantsData);
+  // }, [plantsData]);
+
   const filteredPlants = useMemo(() => {
-    return mockPlants.filter(plant => {
+    return plantsData.filter(plant => {
       // Search filter
       if (searchQuery && !plant.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
         !plant.category.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -202,13 +228,77 @@ const App = () => {
 
       return true;
     });
-  }, [searchQuery, filters]);
+  }, [searchQuery, filters, plantsData]);
+
+  // useEffect(() => {
+  //   console.log(filteredPlants);
+  // }, [filteredPlants]);
+    // useEffect(() => {
+    //   const fetchPlants = async () => {
+    //     const response = await fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/readPlantsData');
+    //     const plants = await new Promise(resolve => setTimeout(() => resolve(response.json()), 1000));
+    //     setPlantsData(plants as Plant[]);
+    //     console.log(plants);
+    //     console.log(plantsData);
+    //   }
+    //   fetchPlants();
+    // }, []);
+  // setPlantsData(plants || mockPlants);
+  // const [jwt, setJwt] = useState<string | null>(null);
+  // const [user, setUser] = useState<any>(null); // Replace with your user type
+
+  // Filter plants based on search and filters
+    // In a real app, this would fetch from an API with applied filters
+  // const filteredPlants = useMemo(() => {
+  //   console.log(plantsData);
+  // }, [searchQuery, filters]);
+  //   const fetchPlants = async () => {
+  //     const response = await fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/readPlantsData');
+  //     const plants = await new Promise(resolve => setTimeout(() => resolve(response.json()), 1000));
+  //     return plants as Plant[];
+  //   }
+  //   fetchPlants();
+  //   console.log(plantsData);
+  //   // console.log(plantsData);
+  //   return plantsData.filter(plant => {
+  //     // Search filter
+  //     console.log(plant);
+  //     if (searchQuery && !plant.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+  //       !plant.category.toLowerCase().includes(searchQuery.toLowerCase())) {
+  //       return false;
+  //     }
+
+  //     // Category filter
+  //     if (filters.categories.length > 0) {
+  //       const categoryMatch = filters.categories.some(cat => {
+  //         if (cat === 'houseplants') return plant.category === 'Houseplants';
+  //         if (cat === 'flowers') return plant.category === 'Flowers';
+  //         if (cat === 'herbs') return plant.category === 'Herbs';
+  //         if (cat === 'succulents') return plant.category === 'Succulents';
+  //         if (cat === 'trees') return plant.category === 'Trees';
+  //         return false;
+  //       });
+  //       if (!categoryMatch) return false;
+  //     }
+
+  //     // Price filter
+  //     if (plant.price < filters.priceRange[0] || plant.price > filters.priceRange[1]) {
+  //       return false;
+  //     }
+
+  //     // Condition filter
+  //     if (filters.condition && plant.condition.toLowerCase().replace(' ', '-') !== filters.condition) {
+  //       return false;
+  //     }
+
+  //     return true;
+  //   });
+  // }, [searchQuery, filters]);
 
   const handleAddListing = () => {
     // In a real app, this would open a form to add a new listing
     setIsCreateNewPlantModalOpen(true);
   };
-
   // useEffect(() => {
   //   async function fetchJwt() {
   //     if (user && user.isVerified) {
@@ -251,6 +341,7 @@ const App = () => {
 
               <div className="text-sm text-muted-foreground">
                 {filteredPlants.length} plants found
+                {/* {0} plants found */}
                 {searchQuery && (
                   <span> for "{searchQuery}"</span>
                 )}
@@ -283,7 +374,7 @@ const App = () => {
                 : 'space-y-4'
               }
             `}>
-              {filteredPlants.map((plant) => (
+              {filteredPlants.map((plant: Plant) => (
                 <PlantCard
                   key={plant.id}
                   plant={plant}
@@ -292,20 +383,28 @@ const App = () => {
             </div>
           ) : (
             <div className="text-center py-12">
-              <div className="text-muted-foreground mb-4">
-                No plants found matching your criteria
-              </div>
-              <Button variant="outline" onClick={() => {
-                setSearchQuery('');
-                setFilters({
-                  categories: [],
-                  priceRange: [0, 500],
-                  condition: '',
-                  location: 'anywhere'
-                });
-              }}>
-                Clear all filters
-              </Button>
+              {loading ? (
+                <div className="text-lg text-gray-500">Loading plants...</div>
+              ) : error ? (
+                <div className="text-lg text-red-500">Error loading plants. Please try again later.</div>
+              ) : (
+                <>
+                  <div className="text-muted-foreground mb-4">
+                    No plants found matching your criteria
+                  </div>
+                  <Button variant="outline" onClick={() => {
+                    setSearchQuery('');
+                    setFilters({
+                      categories: [],
+                      priceRange: [0, 500],
+                      condition: '',
+                      location: 'anywhere'
+                    });
+                  }}>
+                    Clear all filters
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </main>
