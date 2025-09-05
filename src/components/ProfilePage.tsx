@@ -12,12 +12,11 @@ interface Review {
 
 // Helper to parse DynamoDB JSON format
 function parseUserData(data: any) {
-  console.log("Parsing user data:", data);
   return {
     userId: data.userId || "",
     fullName: data.fullName || "",
     joinedDate: data.joinedDate || "",
-    profilePic: data.profilePic || "",
+    profilePic: data.profilePic || "empty",
     description: data.plantListings ? [data.plantListings][0]?.description || "" : "",
     subscription: data.subscription || "Free Plan",
     plantListings: data.plantListings && Array.isArray(data.plantListings) && data.plantListings.length > 0 ? [...data.plantListings] : [],
@@ -54,6 +53,7 @@ export function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editDescription, setEditDescription] = useState(user.description);
   const [editAvatar, setEditAvatar] = useState(user.profilePic);
+  const [editFullName, setEditFullName] = useState(user.fullName);
   const [activeTab, setActiveTab] = useState("listings");
 
   // Fetch user data from API on mount
@@ -68,13 +68,11 @@ export function ProfilePage() {
         const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to fetch user data");
         const data = await response.json();
-        console.log("Fetched user data:", data);
-        console.log("response status:", response.status);
         const parsed = parseUserData(data);
-        console.log(parsed);
         setUser(parsed);
         setEditDescription(parsed.description || "");
         setEditAvatar(parsed.profilePic);
+        setEditFullName(parsed.fullName);
       } catch (error) {
         console.error(error);
       }
@@ -111,9 +109,31 @@ export function ProfilePage() {
     setIsEditing(false);
   };
 
-  useEffect(() => {
-    console.log("Saved Listings:", user.savedListings);
-  }, [user.savedListings]);
+  // Save changes to backend (not implemented)
+  const saveChangesToBackend = async () => {
+    // Implement API call to save changes
+    console.log(JSON.stringify({ fullName: editFullName, profilePic: editAvatar, description: editDescription }));
+    fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/updateUserData?userId=${user.userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json'},
+      body: JSON.stringify({ fullName: editFullName, profilePic: editAvatar, description: editDescription }),
+    }).then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to save changes');
+      }
+    }).catch(error => {
+      console.log(error);
+      return;
+    });
+    // Update local state if needed
+    setUser({
+      ...user,
+      fullName: editFullName,
+      profilePic: editAvatar,
+      description: editDescription,
+    });
+    setIsEditing(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center py-8 px-4">
@@ -121,7 +141,7 @@ export function ProfilePage() {
       <div className="flex flex-col items-center mb-8">
         <div className="relative">
           <img
-            src={isEditing ? editAvatar : user.profilePic.replace("'", "").replace('https://dev.thumr.com/', '')}
+            src={isEditing ? editAvatar : user?.profilePic.replace("'", "").replace('https://dev.thumr.com/', '')}
             alt={user.fullName}
             className="w-24 h-24 rounded-full object-cover border-4 border-green-300 mb-4"
           />
@@ -139,18 +159,34 @@ export function ProfilePage() {
         </div>
         <h2 className="text-2xl font-semibold text-green-800">{user.fullName}</h2>
         {isEditing ? (
-          <textarea
-            value={editDescription}
-            onChange={e => setEditDescription(e.target.value)}
-            className="mt-2 max-w-md w-full p-2 rounded border border-green-200 text-gray-700"
-            rows={3}
-          />
+          <>
+            <span className="text-green-800 text-md">Edit Name</span>
+            <input
+              type="text"
+              value={editFullName}
+              onChange={e => setEditFullName(e.target.value)}
+              className="mt-2 max-w-md w-full p-2 rounded border border-green-200 text-gray-700"
+            />
+          </>
+        ) : (
+          <p className="text-gray-600 text-center mt-2 max-w-md">{user.description}</p>
+        )}
+        {isEditing ? (
+          <>
+            <span className="text-green-800 text-md">Edit Description</span>
+              <textarea
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                className="mt-2 max-w-md w-full p-2 rounded border border-green-200 text-gray-700"
+                rows={3}
+            />
+          </>
         ) : (
           <p className="text-gray-600 text-center mt-2 max-w-md">{user.description}</p>
         )}
         {isEditing ? (
           <div className="flex gap-2 mt-4">
-            <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSave}>
+            <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={saveChangesToBackend}>
               Save
             </Button>
             <Button variant="outline" onClick={handleCancel}>
