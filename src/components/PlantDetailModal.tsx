@@ -93,6 +93,18 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
   const handleListingSave = (updatedPlant: Plant) => {
     // TODO: Handle the updated plant data (e.g., save to backend)
     console.log('Updated plant:', updatedPlant);
+    fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/updatePlantData?userId=${updatedPlant.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json'},
+      body: JSON.stringify({ ...updatedPlant }),
+    }).then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to save changes');
+      }
+    }).catch(error => {
+      console.log(error);
+      return;
+    });
     setIsEditListingScreenOpen(false);
   };
 

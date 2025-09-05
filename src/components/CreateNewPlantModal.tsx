@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Image } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
 import { Button } from './ui/button';
+import { v4 as uuidv4 } from 'uuid';
 
 interface CreateNewPlantModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
       bucket,
       files: files.map(f => ({ fileName: f.name, contentType: f.type || "application/octet-stream" })),
       plantData: {
+        id: uuidv4(),
         name: plantName,
         price,
         location,
@@ -48,7 +50,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
         height
       }
     };
-    console.log(presignBody)
+    // console.log(presignBody)
 
     const res = await fetch(`${presignApiUrl}?data=${encodeURIComponent(JSON.stringify(presignBody))}`);
     if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
@@ -66,8 +68,6 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
       if (!put.ok) throw new Error(`upload failed for ${file.name}: ${put.status}`);
       return { file: file.name, ok: true, attributes: file };
     }));
-
-    // console.log(results);
     // if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
 
     // const data: { uploads: { fileName: string; url: string; headers: Record<string,string> }[] } = await res.json();

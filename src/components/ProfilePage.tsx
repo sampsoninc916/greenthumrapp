@@ -112,7 +112,6 @@ export function ProfilePage() {
   // Save changes to backend (not implemented)
   const saveChangesToBackend = async () => {
     // Implement API call to save changes
-    console.log(JSON.stringify({ fullName: editFullName, profilePic: editAvatar, description: editDescription }));
     fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/updateUserData?userId=${user.userId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json'},

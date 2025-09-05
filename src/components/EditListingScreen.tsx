@@ -91,7 +91,7 @@ export function EditListingScreen({
                         <div className="relative w-full flex justify-center items-center px-0 md:px-2">
                             <Carousel className="mx-auto w-full max-w-xs md:max-w-md">
                                 <CarouselContent>
-                                    {editedPlant.images.map((img, idx) => (
+                                    {editedPlant?.images && Array.isArray(editedPlant?.images) && editedPlant?.images.map((img, idx) => (
                                         <CarouselItem key={idx}>
                                             <div className="aspect-square overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center w-full">
                                                 <ImageWithFallback
@@ -113,7 +113,7 @@ export function EditListingScreen({
                         </div>
 
                         <div className="flex gap-2 overflow-x-auto pb-2">
-                            {editedPlant.images.map((image, index) => (
+                            {editedPlant?.images && Array.isArray(editedPlant?.images) && editedPlant?.images.map((image, index) => (
                                 <div key={index} className="flex flex-col items-center min-w-[110px]">
                                     <input
                                         type="text"
