@@ -26,6 +26,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
   const [isEditListingScreenOpen, setIsEditListingScreenOpen] = useState(false);
   const [plantName, setPlantName] = useState(plant ? plant.name : "");
   const [showBackAlert, setShowBackAlert] = useState(false);
+  const [currentPlant, setCurrentPlant] = useState<Plant | null>(plant);
 
   // Handle window resize with cleanup
   useEffect(() => {
@@ -41,9 +42,10 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
     };
   }, []);
 
-  // Sync plantName when plant prop changes
+  // Sync plantName and currentPlant when plant prop changes
   useEffect(() => {
     setPlantName(plant ? plant.name : "");
+    setCurrentPlant(plant);
   }, [plant]);
 
   // Reset all states when modal closes
@@ -57,7 +59,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
     onClose();
   };
 
-  if (!plant) return null;
+  if (!currentPlant) return null;
 
   const getConditionColor = (condition: string) => {
     switch (condition) {
@@ -90,21 +92,43 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
     setShowBackAlert(false);
   };
 
-  const handleListingSave = (updatedPlant: Plant) => {
-    // TODO: Handle the updated plant data (e.g., save to backend)
-    console.log('Updated plant:', updatedPlant);
-    fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/updatePlantData?userId=${updatedPlant.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json'},
-      body: JSON.stringify({ ...updatedPlant }),
-    }).then(response => {
-      if (!response.ok) {
-        throw new Error('Failed to save changes');
-      }
-    }).catch(error => {
-      console.log(error);
-      return;
+  const handleListingSave = async (updatedPlant: Plant, changedFields: Set<keyof Plant>) => {
+    // Only send the fields that were actually changed
+    const changedData: Partial<Plant> = {};
+    
+    // Build object with only changed fields
+    changedFields.forEach(field => {
+      (changedData as any)[field] = updatedPlant[field];
     });
+    
+    // Only make API call if there are changes
+    if (changedFields.size > 0) {
+      console.log('Sending changed fields:', changedData);
+      
+      try {
+        const response = await fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/updatePlantData?plantId=${updatedPlant.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json'},
+          body: JSON.stringify(changedData),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to save changes');
+        }
+        
+        console.log('Successfully saved changes');
+        // Update the local state with the new plant data
+        setCurrentPlant(updatedPlant);
+        setPlantName(updatedPlant.name);
+      } catch (error) {
+        console.error('Error saving changes:', error);
+        alert('Failed to save changes. Please try again.');
+        return;
+      }
+    } else {
+      console.log('No changes to save');
+    }
+    
     setIsEditListingScreenOpen(false);
   };
 
@@ -117,7 +141,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
       {(!isReviewScreenOpen && !isEditListingScreenOpen) && (
         <DialogContent className="max-w-4xl h-screen md:h-[83vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{plant.name}</DialogTitle>
+            <DialogTitle>{currentPlant.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-12">
             <DialogHeader className="flex flex-row items-center justify-between p-0">
@@ -137,15 +161,15 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
               <div className="space-y-4">
                 <div className="aspect-square overflow-hidden rounded-lg bg-gray-100">
                   <ImageWithFallback
-                    src={Array.isArray(plant.images) ? plant.images[currentImageIndex] : plant.images}
-                    alt={plant.name}
+                    src={Array.isArray(currentPlant.images) ? currentPlant.images[currentImageIndex] : currentPlant.images}
+                    alt={currentPlant.name}
                     className="w-full h-full object-cover"
                   />
                 </div>
 
-                {Array.isArray(plant.images) && plant.images.length > 1 && (
+                {Array.isArray(currentPlant.images) && currentPlant.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto">
-                    {plant.images.map((image, index) => (
+                    {currentPlant.images.map((image, index) => (
                       <button
                         key={index}
                         onClick={() => setCurrentImageIndex(index)}
@@ -156,7 +180,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                       >
                         <ImageWithFallback
                           src={image}
-                          alt={`${plant.name} ${index + 1}`}
+                          alt={`${currentPlant.name} ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                       </button>
@@ -170,7 +194,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                 {/* Header */}
                 <div className="space-y-2">
                   <div className="flex items-start justify-between">
-                    <h1 className="text-2xl font-semibold">{plant.name}</h1>
+                    <h1 className="text-2xl font-semibold">{currentPlant.name}</h1>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -187,17 +211,17 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                     <div className="flex-1 items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-2xl font-bold text-green-600">
-                          ${plant.price}
+                          ${currentPlant.price}
                         </span>
-                        <Badge className={getConditionColor(plant.condition)} variant="secondary">
-                          {plant.condition}
+                        <Badge className={getConditionColor(currentPlant.condition)} variant="secondary">
+                          {currentPlant.condition}
                         </Badge>
-                        <Badge variant="outline">{plant.category}</Badge>
+                        <Badge variant="outline">{currentPlant.category}</Badge>
                       </div>
 
                       <div className="flex items-center gap-1 text-muted-foreground">
                         <MapPin className="h-4 w-4" />
-                        <span>{plant.location}</span>
+                        <span>{currentPlant.location}</span>
                       </div>
                     </div>
 
@@ -217,17 +241,17 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar>
-                      <AvatarImage src={plant.sellerAvatar} />
+                      <AvatarImage src={currentPlant.sellerAvatar} />
                       <AvatarFallback>
                         <User className="h-4 w-4" />
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{plant.seller}</p>
+                      <p className="font-medium">{currentPlant.seller}</p>
                       <div className="flex items-center gap-1">
                         <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                         <span className="text-sm text-muted-foreground">
-                          {plant.sellerRating} rating
+                          {currentPlant.sellerRating} rating
                         </span>
                       </div>
                     </div>
@@ -245,22 +269,22 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-muted-foreground">Pot Size:</span>
-                      <p className="font-medium">{plant.potSize}</p>
+                      <p className="font-medium">{currentPlant.potSize}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Height:</span>
-                      <p className="font-medium">{plant.height}</p>
+                      <p className="font-medium">{currentPlant.height}</p>
                     </div>
                   </div>
 
                   <div>
                     <span className="text-muted-foreground">Description:</span>
-                    <p className="mt-1">{plant.description}</p>
+                    <p className="mt-1">{currentPlant.description}</p>
                   </div>
 
                   <div>
                     <span className="text-muted-foreground">Care Instructions:</span>
-                    <p className="mt-1">{plant.careInstructions}</p>
+                    <p className="mt-1">{currentPlant.careInstructions}</p>
                   </div>
                 </div>
 
@@ -286,7 +310,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Posted {plant.postedDate}
+                  Posted {currentPlant.postedDate}
                 </p>
               </div>
             </div>
@@ -297,7 +321,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
       {/* Edit Listing Screen */}
       {(!isReviewScreenOpen && isEditListingScreenOpen) && (
         <EditListingScreen
-          plant={plant}
+          plant={currentPlant}
           onCancel={() => setIsEditListingScreenOpen(false)}
           onSave={handleListingSave}
         />
@@ -307,7 +331,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
       {isReviewScreenOpen && (
         <DialogContent className={"max-w-4xl h-screen md:h-[83vh] overflow-y-auto"}>
           <DialogHeader>
-            <DialogTitle>{plant.name}</DialogTitle>
+            <DialogTitle>{currentPlant.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-12">
             <DialogHeader className="flex flex-row items-center justify-between p-0">

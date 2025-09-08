@@ -16,7 +16,7 @@ import { Plant } from '../interfaces/Plant';
 interface EditListingScreenProps {
     plant: Plant;
     onCancel: () => void;
-    onSave: (updatedPlant: Plant) => void;
+    onSave: (updatedPlant: Plant, changedFields: Set<keyof Plant>) => void;
 }
 
 export function EditListingScreen({
@@ -29,13 +29,26 @@ export function EditListingScreen({
     // Create local state for all editable fields
     const [editedPlant, setEditedPlant] = useState<Plant>({ ...plant });
     const [priceInput, setPriceInput] = useState<string>(plant.price.toString());
+    const [changedFields, setChangedFields] = useState<Set<keyof Plant>>(new Set());
 
-    // Handler to update plant fields
+    // Handler to update plant fields and track changes
     const updatePlantField = <K extends keyof Plant>(field: K, value: Plant[K]) => {
         setEditedPlant(prev => ({
             ...prev,
             [field]: value
         }));
+        
+        // Track which field was changed
+        if (JSON.stringify(plant[field]) !== JSON.stringify(value)) {
+            setChangedFields(prev => new Set(prev).add(field));
+        } else {
+            // If value reverted to original, remove from changed fields
+            setChangedFields(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(field);
+                return newSet;
+            });
+        }
     };
 
     // Handler to update images array
@@ -63,7 +76,7 @@ export function EditListingScreen({
             alert('Price cannot be negative');
             return;
         }
-        onSave(editedPlant);
+        onSave(editedPlant, changedFields);
     };
 
     return (
