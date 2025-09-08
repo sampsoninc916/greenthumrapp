@@ -17,10 +17,10 @@ function parseUserData(data: any) {
     fullName: data.fullName || "",
     joinedDate: data.joinedDate || "",
     profilePic: data.profilePic || "empty",
-    description: data.plantListings ? [data.plantListings][0]?.description || "" : "",
+    description: data.description || "",
     subscription: data.subscription || "Free Plan",
-    plantListings: data.plantListings && Array.isArray(data.plantListings) && data.plantListings.length > 0 ? [...data.plantListings] : [],
-    savedListings: data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 0 ? [...data.savedListings] : [],
+    plantListingIds: data.plantListings && Array.isArray(data.plantListings) && data.plantListings.length > 0 ? [...data.plantListings] : [],
+    savedListingIds: data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 0 ? [...data.savedListings] : [],
   };
 }
 
@@ -55,10 +55,12 @@ export function ProfilePage() {
   const [editAvatar, setEditAvatar] = useState(user.profilePic);
   const [editFullName, setEditFullName] = useState(user.fullName);
   const [activeTab, setActiveTab] = useState("listings");
+  const [userPlantListings, setUserPlantListings] = useState<Plant[]>([]);
+  const [userSavedListings, setUserSavedListings] = useState<Plant[]>([]);
 
   // Fetch user data from API on mount
   useEffect(() => {
-    async function fetchUser() {
+    async function fetchUserAndPlants() {
       try {
         const userId = "97c7e891-a50d-456d-990c-a3a271099c0c";
         const tableName = "users";
@@ -69,7 +71,23 @@ export function ProfilePage() {
         if (!response.ok) throw new Error("Failed to fetch user data");
         const data = await response.json();
         const parsed = parseUserData(data);
-        setUser(parsed);
+        
+        // Fetch all plant data
+        const plantsResponse = await fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/readPlantsData');
+        if (!plantsResponse.ok) throw new Error("Failed to fetch plants data");
+        const allPlants: Plant[] = await plantsResponse.json();
+        
+        // Filter plants for user's listings
+        const userPlants = allPlants.filter(plant => parsed.plantListingIds.includes(plant.id));
+        const savedPlants = allPlants.filter(plant => parsed.savedListingIds.includes(plant.id));
+        
+        setUserPlantListings(userPlants);
+        setUserSavedListings(savedPlants);
+        setUser({
+          ...parsed,
+          plantListings: userPlants,
+          savedListings: savedPlants
+        });
         setEditDescription(parsed.description || "");
         setEditAvatar(parsed.profilePic);
         setEditFullName(parsed.fullName);
@@ -77,7 +95,7 @@ export function ProfilePage() {
         console.error(error);
       }
     }
-    fetchUser();
+    fetchUserAndPlants();
   }, []);
 
   // Handle avatar file upload
@@ -224,8 +242,8 @@ export function ProfilePage() {
           <>
             <h3 className="text-lg font-medium text-green-700 mb-4">My Listings</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {user.plantListings && user.plantListings.length > 0 ? (
-                user.plantListings.map((listing: Plant) => (
+              {userPlantListings && userPlantListings.length > 0 ? (
+                userPlantListings.map((listing: Plant) => (
                   <Card key={listing.id}>
                     <PlantCard
                       plant={listing}
@@ -244,8 +262,8 @@ export function ProfilePage() {
           <>
             <h3 className="text-lg font-medium text-green-700 mb-4">Saved Listings</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {user.savedListings && user.savedListings.length > 0 ? (
-                user.savedListings.map((listing: Plant) => (
+              {userSavedListings && userSavedListings.length > 0 ? (
+                userSavedListings.map((listing: Plant) => (
                   <Card key={listing.id}>
                     <PlantCard
                       plant={listing}
