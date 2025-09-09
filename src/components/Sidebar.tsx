@@ -12,7 +12,7 @@ interface SidebarProps {
   filters: {
     categories: string[];
     priceRange: number[];
-    condition: string;
+    conditions: string[];
     location: string;
   };
   onFiltersChange: (filters: any) => void;
@@ -54,8 +54,12 @@ export function Sidebar({ isOpen, onClose, filters, onFiltersChange }: SidebarPr
     onFiltersChange({ ...filters, priceRange: [value[0], value[1]] });
   };
 
-  const handleConditionChange = (condition: string) => {
-    onFiltersChange({ ...filters, condition });
+  const handleConditionChange = (conditionId: string, checked: boolean) => {
+    const newConditions = checked 
+      ? [...filters.conditions, conditionId]
+      : filters.conditions.filter(id => id !== conditionId);
+    
+    onFiltersChange({ ...filters, conditions: newConditions });
   };
 
   const handleLocationChange = (location: string) => {
@@ -66,7 +70,7 @@ export function Sidebar({ isOpen, onClose, filters, onFiltersChange }: SidebarPr
     onFiltersChange({
       categories: [],
       priceRange: [0, 500],
-      condition: '',
+      conditions: [],
       location: 'anywhere'
     });
   };
@@ -171,19 +175,25 @@ export function Sidebar({ isOpen, onClose, filters, onFiltersChange }: SidebarPr
               <Star className="h-4 w-4 text-green-600" />
               <h3 className="font-medium">Condition</h3>
             </div>
-            <RadioGroup 
-              value={filters.condition} 
-              onValueChange={handleConditionChange}
-            >
+            <div className="space-y-2">
               {conditions.map((condition) => (
                 <div key={condition.id} className="flex items-center space-x-2">
-                  <RadioGroupItem value={condition.id} id={condition.id} />
-                  <Label htmlFor={condition.id} className="text-sm cursor-pointer">
+                  <Checkbox
+                    id={condition.id}
+                    checked={filters.conditions.includes(condition.id)}
+                    onCheckedChange={(checked) => 
+                      handleConditionChange(condition.id, checked as boolean)
+                    }
+                  />
+                  <Label 
+                    htmlFor={condition.id}
+                    className="text-sm cursor-pointer"
+                  >
                     {condition.label}
                   </Label>
                 </div>
               ))}
-            </RadioGroup>
+            </div>
           </div>
 
           <Separator />

@@ -23,7 +23,7 @@ const App = () => {
   const [filters, setFilters] = useState({
     categories: [],
     priceRange: [0, 500],
-    condition: '',
+    conditions: [],
     location: 'anywhere'
   });
   const [plantsData, setPlantsData] = useState<Plant[]>([]);
@@ -74,8 +74,11 @@ const App = () => {
       }
 
       // Condition filter
-      if (filters.condition && plant.condition.toLowerCase().replace(' ', '-') !== filters.condition) {
-        return false;
+      if (filters.conditions.length > 0) {
+        const conditionMatch = filters.conditions.some(cond => 
+          plant.condition.toLowerCase().replace(' ', '-') === cond
+        );
+        if (!conditionMatch) return false;
       }
 
       return true;
@@ -184,7 +187,7 @@ const App = () => {
                     setFilters({
                       categories: [],
                       priceRange: [0, 500],
-                      condition: '',
+                      conditions: [],
                       location: 'anywhere'
                     });
                   }}>
