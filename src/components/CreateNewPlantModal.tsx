@@ -24,6 +24,24 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   const [height, setHeight] = useState('');
   const maxFileSize = 50 * 1024 * 1024; // 50MB
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+          if (reader.result) {
+          // reader.result will be a Data URL (e.g., "data:image/png;base64,iVBORw...")
+                  // You might want to remove the "data:MIME_type;base64," prefix if only the base64 string is needed.
+                  const base64String = reader.result.toString().split(',')[1];
+                  resolve(base64String);
+              } else {
+                  reject(new Error("Failed to read file."));
+              }
+          };
+          reader.onerror = (error) => reject(error);
+          reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const selectedFiles = Array.from(e.target.files);
@@ -32,14 +50,17 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     setFiles(prevFiles => [...prevFiles, ...validFiles]);
   };
 
-  const handleSubmit = async (bucket: string) => {
+  const handleSubmit = async () => {
     if (files.length === 0) return;
-    const presignBody = {
-      bucket,
-      files: files.map(f => ({ fileName: f.name, contentType: f.type || "application/octet-stream" }))
-    };
+    const base64files = await Promise.all(files.map(async (file) => {
+      const base64 = await fileToBase64(file);
+      return {
+        fileName: file.name,
+        fileContentType: file.type || "application/octet-stream",
+        fileBase64: base64
+      };
+    }));
     const plantData = {
-        id: uuidv4(),
         name: plantName,
         price,
         location,
@@ -50,110 +71,20 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
         potSize,
         height
     };
-    // console.log(presignBody)
+    const bodyJSON = {
+      plant: plantData,
+      files: base64files
+    };
 
-    const res = await fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/uploadImages`, {
+    const res = await fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/writePlantsData`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(presignBody),
+      body: JSON.stringify(bodyJSON),
     });
     if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
     const data = await res.json();
     console.log(data);
-
-    const plan: UploadPlan[] = files.map((file) => {
-      // console.log()
-      const entry = data.files.find((u: { fileName: string; }) => u.fileName === file.name)!;
-      return { file, url: entry.url, headers: entry.headers };
-    });
-
-    console.log(plan);
-
-    // const results = await Promise.all(plan.map(async ({ file, url, headers }) => {
-    //   const put = await fetch(url, { method: "PUT", headers, body: file });
-    //   if (!put.ok) throw new Error(`upload failed for ${file.name}: ${put.status}`);
-    //   return { file: file.name, ok: true, attributes: file };
-    // }));
-    // if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
-    // console.log(results);
-
-    // const data: { uploads: { fileName: string; url: string; headers: Record<string,string> }[] } = await res.json();
-
-    // const plan: UploadPlan[] = files.map((file) => {
-    //   const entry = data.uploads.find(u => u.fileName === file.name)!;
-    //   return { file, url: entry.url, headers: entry.headers };
-    // });
-
-    // const results = await Promise.all(plan.map(async ({ file, url, headers }) => {
-    //   const put = await fetch(url, { method: "PUT", headers, body: file });
-    //   if (!put.ok) throw new Error(`upload failed for ${file.name}: ${put.status}`);
-    //   return { file: file.name, ok: true };
-    // }));
-    // setResultsList(results);
-    // console.log(resultsList);
-    // console.log(files);
-    // const reader = new FileReader();
-    // files.forEach((file) => {
-    //   const test = reader.readAsDataURL(file);
-    //   console.log(test);
-    // });
-    // let formData ={
-    //   name: plantName,
-    //   price,
-    //   location,
-    //   category,
-    //   condition,
-    //   description,
-    //   careInstructions,
-    //   potSize,
-    //   height,
-    //   images: []
-    // }
-    // const formData = new FormData();
-    // formData.append('name', plantName);
-    // formData.append('price', price.toString());
-    // formData.append('location', location);
-    // formData.append('category', category);
-    // formData.append('condition', condition);
-    // formData.append('description', description);
-    // formData.append('careInstructions', careInstructions);
-    // formData.append('potSize', potSize);
-    // formData.append('height', height);
-    // files.forEach(file => {
-    //   formData.append('images', file);
-    // });
-
-    // try {
-      // console.log(formData);
-      // const reader = new FileReader();
-      // reader.onload = async () => {
-      //   const base64data = reader.result?.toString().split(',')[1] || '';
-      //   formData.images.push(base64data);
-      //   console.log(formData.images);
-      // const response = await fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/writePlantsData', {
-      //   method: 'POST',
-      //   body: JSON.stringify(formData),
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      // });
-      // const data = await response.json();
-      // console.log(data);
-      // };
-      
-      // formData.images.forEach((image) => {
-      //   reader.readAsDataURL(image);
-      // });
-
-      // if (!response.ok) {
-      //   throw new Error('Failed to upload images');
-      // }
-
-      // Handle successful upload
-      onClose();
-    // } catch (error) {
-    //   console.error(error);
-    // }
+    onClose();
   };
 
   return (
@@ -273,13 +204,13 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                 onChange={(e) => setCategory(e.target.value)}
               >
                 <option value="">Select Category</option>
-                <option value="houseplants">Houseplants</option>
-                <option value="flowers">Flowers</option>
-                <option value="herbs">Herbs</option>
-                <option value="succulents">Succulents</option>
-                <option value="trees">Trees</option>
-                <option value="seeds">Seeds</option>
-                <option value="tools">Tools & Supplies</option>
+                <option value="Houseplants">Houseplants</option>
+                <option value="Flowers">Flowers</option>
+                <option value="Herbs">Herbs</option>
+                <option value="Succulents">Succulents</option>
+                <option value="Trees">Trees</option>
+                <option value="Seeds">Seeds</option>
+                <option value="Tools & Supplies">Tools & Supplies</option>
               </select>
             </div>
             <div className="flex w-full items-center justify-between rounded-md">
@@ -323,7 +254,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
               />
             </div>
             <div className="flex w-full items-center justify-between rounded-md">
-              <button className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center" onClick={() => handleSubmit('dev.thumr.com')}>
+              <button className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center" onClick={handleSubmit}>
                 <span>Add Plant</span>
               </button>
             </div>
