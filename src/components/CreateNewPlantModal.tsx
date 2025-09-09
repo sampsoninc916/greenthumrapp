@@ -32,12 +32,13 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     setFiles(prevFiles => [...prevFiles, ...validFiles]);
   };
 
-  const handleSubmit = async (bucket: string, presignApiUrl: string) => {
+  const handleSubmit = async (bucket: string) => {
     if (files.length === 0) return;
     const presignBody = {
       bucket,
-      files: files.map(f => ({ fileName: f.name, contentType: f.type || "application/octet-stream" })),
-      plantData: {
+      files: files.map(f => ({ fileName: f.name, contentType: f.type || "application/octet-stream" }))
+    };
+    const plantData = {
         id: uuidv4(),
         name: plantName,
         price,
@@ -48,27 +49,33 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
         careInstructions,
         potSize,
         height
-      }
     };
     // console.log(presignBody)
 
-    const res = await fetch(`${presignApiUrl}?data=${encodeURIComponent(JSON.stringify(presignBody))}`);
+    const res = await fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/uploadImages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(presignBody),
+    });
     if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
-    const data: { uploads: { fileName: string; url: string; headers: Record<string,string> }[] } = await res.json();
-    // console.log(data);
+    const data = await res.json();
+    console.log(data);
 
     const plan: UploadPlan[] = files.map((file) => {
       // console.log()
-      const entry = data.uploads.find((u: { fileName: string; }) => u.fileName === file.name)!;
+      const entry = data.files.find((u: { fileName: string; }) => u.fileName === file.name)!;
       return { file, url: entry.url, headers: entry.headers };
     });
 
-    const results = await Promise.all(plan.map(async ({ file, url, headers }) => {
-      const put = await fetch(url, { method: "PUT", headers, body: file });
-      if (!put.ok) throw new Error(`upload failed for ${file.name}: ${put.status}`);
-      return { file: file.name, ok: true, attributes: file };
-    }));
+    console.log(plan);
+
+    // const results = await Promise.all(plan.map(async ({ file, url, headers }) => {
+    //   const put = await fetch(url, { method: "PUT", headers, body: file });
+    //   if (!put.ok) throw new Error(`upload failed for ${file.name}: ${put.status}`);
+    //   return { file: file.name, ok: true, attributes: file };
+    // }));
     // if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
+    // console.log(results);
 
     // const data: { uploads: { fileName: string; url: string; headers: Record<string,string> }[] } = await res.json();
 
@@ -316,7 +323,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
               />
             </div>
             <div className="flex w-full items-center justify-between rounded-md">
-              <button className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center" onClick={() => handleSubmit('dev.thumr.com', 'https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/writePlantsData')}>
+              <button className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center" onClick={() => handleSubmit('dev.thumr.com')}>
                 <span>Add Plant</span>
               </button>
             </div>
