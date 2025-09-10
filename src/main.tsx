@@ -9,6 +9,8 @@ import { LoginPage } from './components/LoginPage';
 import { ProfilePage } from './components/ProfilePage';
 import { NotFoundPage } from './NotFoundPage';
 
+// test to deploy to cloudflare workers pages.
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
