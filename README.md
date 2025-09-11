@@ -7,6 +7,32 @@ Currently, two official plugins are available:
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
 - [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
+## Deploying to Cloudflare Workers
+
+This branch includes configuration for deploying the built site to a [Cloudflare Worker](https://developers.cloudflare.com/workers/).
+
+1. Install dependencies (Wrangler is included as a dev dependency):
+
+   ```bash
+   npm install
+   ```
+
+2. Start a local worker that serves the production build:
+
+   ```bash
+   npm run worker:dev
+   ```
+
+3. Deploy to your Cloudflare development environment:
+
+   ```bash
+   npm run worker:deploy
+   ```
+
+   Ensure you have run `wrangler login` and configured the desired account.
+
+The worker serves static assets from the `dist/` directory and falls back to `index.html` for SPA routes.
+
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
