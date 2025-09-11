@@ -1,70 +1,128 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Separator } from "./ui/separator";
 // TODO: Replace with actual Google and Apple icons or buttons
 import { Chrome } from "lucide-react";
-import { Amplify } from 'aws-amplify';
-import { signUp, confirmSignUp, signIn } from 'aws-amplify/auth';
 import { useNavigate, Link } from "react-router-dom";
 import { v4 as uuidv4 } from 'uuid';
-
-Amplify.configure({
-  Auth: {
-    Cognito: {
-      userPoolId: 'us-east-1_2uwdcZRLa',
-      userPoolClientId: '58m59u2n4ddoldec2rs4oiuc6i',
-    }
-  }
-});
+import { useAuth } from "../contexts/AuthContext";
+import { API_ENDPOINTS, SECURITY_CONFIG } from "../config/amplify";
+import { authService } from "../services/auth";
 
 export function SignupPage() {
   const [name, setName] = useState("");
   const [userName, setUserName] = useState("");
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState(""); // Add password input if needed
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { signup, confirmSignup, login, isAuthenticated } = useAuth();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Validate password strength
+  const validatePassword = (pass: string): string | null => {
+    if (pass.length < SECURITY_CONFIG.PASSWORD_MIN_LENGTH) {
+      return `Password must be at least ${SECURITY_CONFIG.PASSWORD_MIN_LENGTH} characters`;
+    }
+    if (SECURITY_CONFIG.PASSWORD_REQUIRE_UPPERCASE && !/[A-Z]/.test(pass)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (SECURITY_CONFIG.PASSWORD_REQUIRE_LOWERCASE && !/[a-z]/.test(pass)) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (SECURITY_CONFIG.PASSWORD_REQUIRE_NUMBERS && !/\d/.test(pass)) {
+      return 'Password must contain at least one number';
+    }
+    if (SECURITY_CONFIG.PASSWORD_REQUIRE_SPECIAL && !/[!@#$%^&*(),.?":{}|<>]/.test(pass)) {
+      return 'Password must contain at least one special character';
+    }
+    return null;
+  };
+
+  // Validate email format
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   const handleSignup = async () => {
+    // Validation
+    if (!name || !userName || !email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
     try {
-      await signUp({
-        username: userName,
-        password: password,
-        options: {
-          userAttributes: { preferred_username: userName, email: email, name: name }
-        }
-      });
+      await signup(userName, password, email, name);
       setSuccess(true);
-      // Show confirmation step, etc.
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to sign up. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleConfirm = async () => {
+    if (!code) {
+      setError('Please enter the confirmation code');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
     try {
-      await confirmSignUp({ username: userName, confirmationCode: code });
+      await confirmSignup(userName, code);
+      
+      // Create user profile in backend with authentication
+      const userId = uuidv4();
+      const token = await authService.getToken();
+      
+      if (token) {
+        await authService.authenticatedFetch(API_ENDPOINTS.USERS_WRITE, {
+          method: 'POST',
+          body: JSON.stringify({ userId }),
+          requiresAuth: true
+        });
+      }
+      
+      // Auto-login after successful confirmation
+      await login(userName, password);
+      
       setConfirm(true);
       setSuccess(false);
-      const userId = uuidv4(); // Generate a new UUID for the user
-      fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/writeUsersData', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId })
-      }).then((response) => {
-        return response.json();
-      }).then((data) => {
-        console.log(data);
-          // return;
-      });
+      
+      // Navigate to home page after successful signup and login
+      setTimeout(() => navigate('/'), 1500);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to confirm signup. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -127,8 +185,9 @@ export function SignupPage() {
               className="w-full h-12 rounded-lg text-white"
               style={{ backgroundColor: '#36AE46', fontWeight: 500 }}
               onClick={handleSignup}
+              disabled={isLoading}
             >
-              Continue
+              {isLoading ? 'Creating Account...' : 'Continue'}
             </Button>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             {success && (
@@ -146,12 +205,13 @@ export function SignupPage() {
                   className="w-1/4 h-12 rounded-lg text-white"
                   style={{ backgroundColor: '#36AE46', fontWeight: 500 }}
                   onClick={handleConfirm}
+                  disabled={isLoading}
                 >
-                  Confirm
+                  {isLoading ? 'Confirming...' : 'Confirm'}
                 </Button>
               </div>
             )}
-            {!success && confirm && <p className="text-center text-green-600 text-sm">Confirmation confirmed! You may now login.</p>}
+            {!success && confirm && <p className="text-center text-green-600 text-sm">Account created successfully! Redirecting...</p>}
           </div>
 
           {/* Divider */}
