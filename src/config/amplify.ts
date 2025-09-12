@@ -1,65 +1,51 @@
 import { Amplify } from 'aws-amplify';
-import { loadEnvConfig } from './env';
 
-let amplifyConfigured = false;
-
-export const configureAmplify = async () => {
-  if (amplifyConfigured) return;
-  const env = await loadEnvConfig();
-
-  if (!env.AWS_USER_POOL_ID || !env.AWS_USER_POOL_CLIENT_ID) {
-    console.error('Missing required AWS Cognito configuration.');
-  }
-
-  const amplifyConfig = {
-    Auth: {
-      Cognito: {
-        userPoolId: env.AWS_USER_POOL_ID,
-        userPoolClientId: env.AWS_USER_POOL_CLIENT_ID,
-        region: env.AWS_REGION,
-      }
+// Use environment variables for sensitive configuration
+// These MUST be set in your .env file
+const amplifyConfig = {
+  Auth: {
+    Cognito: {
+      userPoolId: import.meta.env.VITE_AWS_USER_POOL_ID,
+      userPoolClientId: import.meta.env.VITE_AWS_USER_POOL_CLIENT_ID,
+      region: import.meta.env.VITE_AWS_REGION,
     }
-  };
+  }
+};
 
+// Validate required environment variables
+if (!import.meta.env.VITE_AWS_USER_POOL_ID || !import.meta.env.VITE_AWS_USER_POOL_CLIENT_ID) {
+  console.error('Missing required AWS Cognito configuration. Please check your .env file.');
+}
+
+// Configure Amplify once at app initialization
+export const configureAmplify = () => {
   Amplify.configure(amplifyConfig);
-  amplifyConfigured = true;
 };
 
-let apiEndpoints: {
-  PLANTS_READ: string;
-  PLANTS_WRITE: string;
-  PLANTS_UPDATE: string;
-  USERS_READ: string;
-  USERS_WRITE: string;
-  USERS_UPDATE: string;
-} | null = null;
-
-export const getApiEndpoints = async () => {
-  if (!apiEndpoints) {
-    const env = await loadEnvConfig();
-    const requiredEndpoints = [
-      'API_PLANTS_READ',
-      'API_PLANTS_WRITE',
-      'API_USERS_READ',
-      'API_USERS_WRITE'
-    ];
-    const missing = requiredEndpoints.filter(key => !(env as any)[key]);
-    if (missing.length > 0) {
-      console.error(`Missing required API endpoints: ${missing.join(', ')}`);
-    }
-
-    apiEndpoints = {
-      PLANTS_READ: env.API_PLANTS_READ,
-      PLANTS_WRITE: env.API_PLANTS_WRITE,
-      PLANTS_UPDATE: env.API_PLANTS_UPDATE,
-      USERS_READ: env.API_USERS_READ,
-      USERS_WRITE: env.API_USERS_WRITE,
-      USERS_UPDATE: env.API_USERS_UPDATE,
-    };
-  }
-  return apiEndpoints;
+// API endpoints configuration
+export const API_ENDPOINTS = {
+  PLANTS_READ: import.meta.env.VITE_API_PLANTS_READ,
+  PLANTS_WRITE: import.meta.env.VITE_API_PLANTS_WRITE,
+  PLANTS_UPDATE: import.meta.env.VITE_API_PLANTS_UPDATE,
+  USERS_READ: import.meta.env.VITE_API_USERS_READ,
+  USERS_WRITE: import.meta.env.VITE_API_USERS_WRITE,
+  USERS_UPDATE: import.meta.env.VITE_API_USERS_UPDATE,
 };
 
+// Validate API endpoints
+const requiredEndpoints = [
+  'VITE_API_PLANTS_READ',
+  'VITE_API_PLANTS_WRITE',
+  'VITE_API_USERS_READ',
+  'VITE_API_USERS_WRITE'
+];
+
+const missingEndpoints = requiredEndpoints.filter(key => !import.meta.env[key]);
+if (missingEndpoints.length > 0) {
+  console.error(`Missing required API endpoints: ${missingEndpoints.join(', ')}. Please check your .env file.`);
+}
+
+// Security configuration
 export const SECURITY_CONFIG = {
   // Use sessionStorage for better security (clears on tab close)
   TOKEN_STORAGE: 'session', // 'session' or 'local'

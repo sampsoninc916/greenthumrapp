@@ -33,10 +33,6 @@ This branch includes configuration for deploying the built site to a [Cloudflare
 
 The worker serves static assets from the `dist/` directory and falls back to `index.html` for SPA routes.
 
-## Environment Variables
-
-Application configuration is provided by environment variables defined for the Cloudflare Worker. These variables are declared in `wrangler.toml` under the `[vars]` section and are made available to the frontend through the worker at the `/env-config` endpoint. The React app loads this configuration at runtime and uses it to initialize AWS Amplify and API endpoints. No `.env` file is required.
-
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:

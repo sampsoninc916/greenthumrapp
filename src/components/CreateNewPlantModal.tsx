@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
-import { getApiEndpoints } from '../config/amplify';
+import { API_ENDPOINTS } from '../config/amplify';
 
 interface CreateNewPlantModalProps {
   isOpen: boolean;
@@ -112,9 +112,8 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
         throw new Error('Authentication required');
       }
 
-      const endpoints = await getApiEndpoints();
       const res = await authService.authenticatedFetch(
-        endpoints.PLANTS_WRITE,
+        API_ENDPOINTS.PLANTS_WRITE,
         {
           method: 'POST',
           body: JSON.stringify(bodyJSON),

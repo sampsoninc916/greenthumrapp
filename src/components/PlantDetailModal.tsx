@@ -9,7 +9,7 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { StarRating } from "./StarRating";
 import { EditListingScreen } from './EditListingScreen';
 import { Plant } from '../interfaces/Plant';
-import { getApiEndpoints } from '../config/amplify';
+import { API_ENDPOINTS } from '../config/amplify';
 import { apiClient } from '../services/auth';
 
 interface PlantDetailModalProps {
@@ -108,9 +108,8 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
       console.log('Sending changed fields:', changedData);
       
       try {
-        const endpoints = await getApiEndpoints();
         const response = await apiClient.put(
-          `${endpoints.PLANTS_UPDATE}?plantId=${updatedPlant.id}`,
+          `${API_ENDPOINTS.PLANTS_UPDATE}?plantId=${updatedPlant.id}`,
           changedData,
           true // Requires authentication to update plants
         );
