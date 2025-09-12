@@ -6,7 +6,7 @@ compatibility_date = "2024-12-20"
 command = "npm run build"
 
 [assets]
-dir = "./dist"
+directory = "./dist"
 
 [env.dev]
 workers_dev = true
