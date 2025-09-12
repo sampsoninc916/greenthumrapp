@@ -178,7 +178,7 @@ const App = () => {
               {loading ? (
                 <div className="text-lg text-gray-500">Loading plants...</div>
               ) : error ? (
-                <div className="text-lg text-red-500">Error loading plants. Please try again later.</div>
+                <div className="text-lg text-red-500">Please login or create an account to view plants for exchange.</div>
               ) : (
                 <>
                   <div className="text-muted-foreground mb-4">
