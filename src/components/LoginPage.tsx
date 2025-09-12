@@ -1,46 +1,35 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Separator } from "./ui/separator";
 // TODO: Replace with actual Google and Apple icons or buttons
 import { Chrome } from "lucide-react";
-import { useNavigate, Link, useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { Amplify } from 'aws-amplify';
+import { signIn } from 'aws-amplify/auth';
+import { useNavigate, Link } from "react-router-dom";
+
+Amplify.configure({
+  Auth: {
+    Cognito: {
+      userPoolId: 'us-east-1_2uwdcZRLa',
+      userPoolClientId: '58m59u2n4ddoldec2rs4oiuc6i',
+    }
+  }
+});
 
 export function LoginPage() {
   const [userName, setUserName] = useState("");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(""); // Add password input if needed
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login, isAuthenticated } = useAuth();
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      // Navigate to the page they were trying to access, or home
-      const from = location.state?.from?.pathname || '/';
-      navigate(from, { replace: true });
-    }
-  }, [isAuthenticated, navigate, location]);
 
   const handleSignIn = async () => {
-    if (!userName || !password) {
-      setError('Please enter both username and password');
-      return;
-    }
-
-    setIsLoading(true);
-    setError('');
-    
     try {
-      await login(userName, password);
-      // Navigation happens in useEffect above after auth state updates
+      await signIn({ username: userName, password: password });
+      navigate('/'); // Redirect to home or dashboard after successful sign-in
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in. Please check your credentials.');
-    } finally {
-      setIsLoading(false);
+      setError(err.message);
     }
   };
 
@@ -78,9 +67,8 @@ export function LoginPage() {
             className="w-full h-12 rounded-lg text-white"
             style={{ backgroundColor: '#36AE46', fontWeight: 500 }}
             onClick={handleSignIn}
-            disabled={isLoading}
           >
-            {isLoading ? 'Signing In...' : 'Sign In'}
+            Sign In
           </Button>
           {error && <p className="text-red-500 text-sm">{error}</p>}
 

@@ -4,8 +4,6 @@ import { Card } from "./ui/card";
 import { PlantCard } from "./PlantCard";
 import { Plant } from "../interfaces/Plant";
 import { User } from "../interfaces/User";
-import { API_ENDPOINTS } from "../config/amplify";
-import { apiClient } from "../services/auth";
  
 interface Review {
   rating: number;
@@ -68,14 +66,14 @@ export function ProfilePage() {
         const tableName = "users";
         const userData = { userId, tableName };
         const queryParams = new URLSearchParams(userData as any).toString();
-        const url = `${API_ENDPOINTS.USERS_READ}?${queryParams}`;
-        const response = await apiClient.get(url, true); // Requires auth to read user data
+        const url = `https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/readUsersData?${queryParams.toString()}`;
+        const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to fetch user data");
         const data = await response.json();
         const parsed = parseUserData(data);
         
         // Fetch all plant data
-        const plantsResponse = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false); // Public endpoint
+        const plantsResponse = await fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/readPlantsData');
         if (!plantsResponse.ok) throw new Error("Failed to fetch plants data");
         const allPlants: Plant[] = await plantsResponse.json();
         
@@ -129,29 +127,29 @@ export function ProfilePage() {
     setIsEditing(false);
   };
 
-  // Save changes to backend
+  // Save changes to backend (not implemented)
   const saveChangesToBackend = async () => {
-    try {
-      const response = await apiClient.put(
-        `${API_ENDPOINTS.USERS_UPDATE}?userId=${user.userId}`,
-        { fullName: editFullName, profilePic: editAvatar, description: editDescription },
-        true // Requires authentication
-      );
+    // Implement API call to save changes
+    fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/updateUserData?userId=${user.userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json'},
+      body: JSON.stringify({ fullName: editFullName, profilePic: editAvatar, description: editDescription }),
+    }).then(response => {
       if (!response.ok) {
         throw new Error('Failed to save changes');
       }
-      console.log('Changes saved successfully');
-      // Update local state if needed
-      setUser({
-        ...user,
-        fullName: editFullName,
-        profilePic: editAvatar,
-        description: editDescription,
-      });
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Error saving changes:', error);
-    }
+    }).catch(error => {
+      console.log(error);
+      return;
+    });
+    // Update local state if needed
+    setUser({
+      ...user,
+      fullName: editFullName,
+      profilePic: editAvatar,
+      description: editDescription,
+    });
+    setIsEditing(false);
   };
 
   return (

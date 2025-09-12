@@ -9,16 +9,12 @@ import { v4 as uuidv4 } from 'uuid';
 import './index.css';
 import './App.css';
 import { Plant } from './interfaces/Plant';
-import { useAuth } from './contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { API_ENDPOINTS } from './config/amplify';
-import { apiClient } from './services/auth';
+import { set } from 'react-hook-form';
 
 const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCreateNewPlantModalOpen, setIsCreateNewPlantModalOpen] = useState(false);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -31,28 +27,24 @@ const App = () => {
     location: 'anywhere'
   });
   const [plantsData, setPlantsData] = useState<Plant[]>([]);
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
-        // Public endpoint - no authentication required for viewing plants
-        const response = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false);
+        setLoading(true); // Set loading state before fetching
+        const response = await fetch('https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/readPlantsData');
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const result = await response.json();
-        setPlantsData(result);
+        setPlantsData(result); // Set data after successful fetch
       } catch (err) {
-        console.error('Error fetching plants:', err);
-        setError(true);
+        setError(true); // Set error state if something goes wrong
       } finally {
-        setLoading(false);
+        setLoading(false); // Always turn off loading state
       }
     };
 
-    fetchData();
+    fetchData(); // Call the async function
   }, []);
 
   const filteredPlants = useMemo(() => {
@@ -94,13 +86,19 @@ const App = () => {
   }, [searchQuery, filters, plantsData]);
 
   const handleAddListing = () => {
-    if (!isAuthenticated) {
-      // Store intended action and redirect to login
-      navigate('/login', { state: { from: { pathname: '/', action: 'add-listing' } } });
-    } else {
-      setIsCreateNewPlantModalOpen(true);
-    }
+    // In a real app, this would open a form to add a new listing
+    setIsCreateNewPlantModalOpen(true);
   };
+  // useEffect(() => {
+  //   async function fetchJwt() {
+  //     if (user && user.isVerified) {
+  //       const res = await fetch('/api/request-jwt', { method: 'POST', body: JSON.stringify({ userId: user.id }) });
+  //       const data = await res.json();
+  //       setJwt(data.token);
+  //     }
+  //   }
+  //   fetchJwt();
+  // }, [user]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">

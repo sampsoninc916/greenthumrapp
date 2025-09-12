@@ -3,10 +3,6 @@ import { Image } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
 import { Button } from './ui/button';
 import { v4 as uuidv4 } from 'uuid';
-import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { authService } from '../services/auth';
-import { API_ENDPOINTS } from '../config/amplify';
 
 interface CreateNewPlantModalProps {
   isOpen: boolean;
@@ -26,19 +22,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   const [careInstructions, setCareInstructions] = useState('');
   const [potSize, setPotSize] = useState('');
   const [height, setHeight] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
   const maxFileSize = 50 * 1024 * 1024; // 50MB
-  
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-
-  // Redirect to login if not authenticated
-  if (!isAuthenticated && isOpen) {
-    onClose();
-    navigate('/login', { state: { from: { pathname: '/', action: 'add-listing' } } });
-    return null;
-  }
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -67,21 +51,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   };
 
   const handleSubmit = async () => {
-    // Validation
-    if (!plantName || !price || !location || !category || !condition) {
-      setError('Please fill in all required fields');
-      return;
-    }
-    
-    if (files.length === 0) {
-      setError('Please upload at least one image');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError('');
-
-    try {
+    if (files.length === 0) return;
     const base64files = await Promise.all(files.map(async (file) => {
       const base64 = await fileToBase64(file);
       return {
@@ -106,47 +76,15 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
       files: base64files
     };
 
-      // Use authenticated fetch for creating listings
-      const token = await authService.getToken();
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      const res = await authService.authenticatedFetch(
-        API_ENDPOINTS.PLANTS_WRITE,
-        {
-          method: 'POST',
-          body: JSON.stringify(bodyJSON),
-          requiresAuth: true
-        }
-      );
-      
-      if (!res.ok) {
-        throw new Error(`Failed to create listing: ${res.status}`);
-      }
-      
-      const data = await res.json();
-      console.log('Plant created:', data);
-      
-      // Reset form and close modal
-      setFiles([]);
-      setPlantName('');
-      setPrice(0);
-      setLocation('');
-      setCategory('');
-      setCondition('');
-      setDescription('');
-      setCareInstructions('');
-      setPotSize('');
-      setHeight('');
-      
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create listing');
-      console.error('Error creating listing:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
+    const res = await fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/writePlantsData`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyJSON),
+    });
+    if (!res.ok) throw new Error(`presign failed: ${res.status} ${await res.text()}`);
+    const data = await res.json();
+    console.log(data);
+    onClose();
   };
 
   return (
@@ -316,17 +254,10 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
               />
             </div>
             <div className="flex w-full items-center justify-between rounded-md">
-              <button 
-                className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center disabled:opacity-50" 
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-              >
-                <span>{isSubmitting ? 'Creating...' : 'Add Plant'}</span>
+              <button className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center" onClick={handleSubmit}>
+                <span>Add Plant</span>
               </button>
             </div>
-            {error && (
-              <div className="text-red-500 text-sm mt-2">{error}</div>
-            )}
             {/* Seller Info */}
             {/* <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
