@@ -1,7 +1,5 @@
 import { Amplify } from 'aws-amplify';
 
-// Use environment variables for sensitive configuration
-// These MUST be set in your .env file
 const amplifyConfig = {
   Auth: {
     Cognito: {
@@ -40,7 +38,7 @@ const requiredEndpoints = [
   'VITE_API_USERS_WRITE'
 ];
 
-const missingEndpoints = requiredEndpoints.filter(key => !import.meta.env[key]);
+const missingEndpoints = requiredEndpoints.filter(key => !(import.meta.env as any)[key]);
 if (missingEndpoints.length > 0) {
   console.error(`Missing required API endpoints: ${missingEndpoints.join(', ')}. Please check your .env file.`);
 }
