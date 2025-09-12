@@ -9,6 +9,8 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { StarRating } from "./StarRating";
 import { EditListingScreen } from './EditListingScreen';
 import { Plant } from '../interfaces/Plant';
+import { API_ENDPOINTS } from '../config/amplify';
+import { apiClient } from '../services/auth';
 
 interface PlantDetailModalProps {
   plant: Plant | null;
@@ -106,11 +108,11 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
       console.log('Sending changed fields:', changedData);
       
       try {
-        const response = await fetch(`https://dzakzltsq4.execute-api.us-east-1.amazonaws.com/default/updatePlantData?plantId=${updatedPlant.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json'},
-          body: JSON.stringify(changedData),
-        });
+        const response = await apiClient.put(
+          `${API_ENDPOINTS.PLANTS_UPDATE}?plantId=${updatedPlant.id}`,
+          changedData,
+          true // Requires authentication to update plants
+        );
         
         if (!response.ok) {
           throw new Error('Failed to save changes');
