@@ -11,7 +11,7 @@ import './App.css';
 import { Plant } from './interfaces/Plant';
 import { useAuth } from './contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getApiEndpoints } from './config/amplify';
+import { API_ENDPOINTS } from './config/amplify';
 import { apiClient } from './services/auth';
 
 const App = () => {
@@ -38,8 +38,7 @@ const App = () => {
       try {
         setLoading(true);
         // Public endpoint - no authentication required for viewing plants
-        const endpoints = await getApiEndpoints();
-        const response = await apiClient.get(endpoints.PLANTS_READ, false);
+        const response = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -179,7 +178,7 @@ const App = () => {
               {loading ? (
                 <div className="text-lg text-gray-500">Loading plants...</div>
               ) : error ? (
-                <div className="text-lg text-red-500">Please login or create an account to view plants for exchange.</div>
+                <div className="text-lg text-red-500">Error loading plants. Please try again later.</div>
               ) : (
                 <>
                   <div className="text-muted-foreground mb-4">
