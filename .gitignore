@@ -17,8 +17,8 @@ dist-ssr
 .env.local
 .env.production
 .env.development
-wrangler.toml
 *.toml
+!wrangler.toml
 
 # Editor directories and files
 .vscode/*

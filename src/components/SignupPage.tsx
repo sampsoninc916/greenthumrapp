@@ -7,7 +7,7 @@ import { Chrome } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from "../contexts/AuthContext";
-import { API_ENDPOINTS, SECURITY_CONFIG } from "../config/amplify";
+import { getApiEndpoints, SECURITY_CONFIG } from "../config/amplify";
 import { authService } from "../services/auth";
 
 export function SignupPage() {
@@ -104,7 +104,8 @@ export function SignupPage() {
       const token = await authService.getToken();
       
       if (token) {
-        await authService.authenticatedFetch(API_ENDPOINTS.USERS_WRITE, {
+        const endpoints = await getApiEndpoints();
+        await authService.authenticatedFetch(endpoints.USERS_WRITE, {
           method: 'POST',
           body: JSON.stringify({ userId }),
           requiresAuth: true

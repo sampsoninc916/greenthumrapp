@@ -4,7 +4,7 @@ import { Card } from "./ui/card";
 import { PlantCard } from "./PlantCard";
 import { Plant } from "../interfaces/Plant";
 import { User } from "../interfaces/User";
-import { API_ENDPOINTS } from "../config/amplify";
+import { getApiEndpoints } from "../config/amplify";
 import { apiClient } from "../services/auth";
  
 interface Review {
@@ -68,14 +68,15 @@ export function ProfilePage() {
         const tableName = "users";
         const userData = { userId, tableName };
         const queryParams = new URLSearchParams(userData as any).toString();
-        const url = `${API_ENDPOINTS.USERS_READ}?${queryParams}`;
+        const endpoints = await getApiEndpoints();
+        const url = `${endpoints.USERS_READ}?${queryParams}`;
         const response = await apiClient.get(url, true); // Requires auth to read user data
         if (!response.ok) throw new Error("Failed to fetch user data");
         const data = await response.json();
         const parsed = parseUserData(data);
         
         // Fetch all plant data
-        const plantsResponse = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false); // Public endpoint
+        const plantsResponse = await apiClient.get(endpoints.PLANTS_READ, false); // Public endpoint
         if (!plantsResponse.ok) throw new Error("Failed to fetch plants data");
         const allPlants: Plant[] = await plantsResponse.json();
         
@@ -132,8 +133,9 @@ export function ProfilePage() {
   // Save changes to backend
   const saveChangesToBackend = async () => {
     try {
+      const endpoints = await getApiEndpoints();
       const response = await apiClient.put(
-        `${API_ENDPOINTS.USERS_UPDATE}?userId=${user.userId}`,
+        `${endpoints.USERS_UPDATE}?userId=${user.userId}`,
         { fullName: editFullName, profilePic: editAvatar, description: editDescription },
         true // Requires authentication
       );

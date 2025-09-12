@@ -11,7 +11,7 @@ import './App.css';
 import { Plant } from './interfaces/Plant';
 import { useAuth } from './contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { API_ENDPOINTS } from './config/amplify';
+import { getApiEndpoints } from './config/amplify';
 import { apiClient } from './services/auth';
 
 const App = () => {
@@ -38,7 +38,8 @@ const App = () => {
       try {
         setLoading(true);
         // Public endpoint - no authentication required for viewing plants
-        const response = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false);
+        const endpoints = await getApiEndpoints();
+        const response = await apiClient.get(endpoints.PLANTS_READ, false);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }

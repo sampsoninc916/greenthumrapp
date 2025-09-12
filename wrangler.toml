@@ -1,0 +1,16 @@
+name = "greenthumrapp"
+main = "worker.ts"
+compatibility_date = "2024-11-27"
+
+assets = { binding = "ASSETS", directory = "./dist" }
+
+[vars]
+AWS_USER_POOL_ID = "REPLACE_ME"
+AWS_USER_POOL_CLIENT_ID = "REPLACE_ME"
+AWS_REGION = "REPLACE_ME"
+API_PLANTS_READ = "REPLACE_ME"
+API_PLANTS_WRITE = "REPLACE_ME"
+API_PLANTS_UPDATE = "REPLACE_ME"
+API_USERS_READ = "REPLACE_ME"
+API_USERS_WRITE = "REPLACE_ME"
+API_USERS_UPDATE = "REPLACE_ME"

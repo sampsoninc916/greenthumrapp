@@ -10,9 +10,6 @@ import {
 } from 'aws-amplify/auth';
 import { configureAmplify, SECURITY_CONFIG } from '../config/amplify';
 
-// Configure Amplify once
-configureAmplify();
-
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
@@ -80,7 +77,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    loadUserSession();
+    const init = async () => {
+      await configureAmplify();
+      await loadUserSession();
+    };
+    init();
   }, []);
 
   const login = async (username: string, password: string) => {
