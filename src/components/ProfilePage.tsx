@@ -1,4 +1,5 @@
 import { useState, useEffect, ChangeEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { PlantCard } from "./PlantCard";
@@ -6,6 +7,9 @@ import { Plant } from "../interfaces/Plant";
 import { User } from "../interfaces/User";
 import { API_ENDPOINTS } from "../config/amplify";
 import { apiClient } from "../services/auth";
+import { getCurrentUser } from "aws-amplify/auth";
+import { deleteCurrentUser, useAuth } from "../contexts/AuthContext";
+import { get } from "react-hook-form";
  
 interface Review {
   rating: number;
@@ -25,6 +29,21 @@ function parseUserData(data: any) {
     savedListingIds: data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 0 ? [...data.savedListings] : [],
   };
 }
+
+const getUser = async (logout: () => Promise<void>) => {
+  try {
+    const user = await getCurrentUser();
+    if (user) {
+      return user;
+    } else {
+      console.log("No user found, logging out.");
+      await logout();
+    }
+  } catch (error) {
+    console.error("Error fetching current user:", error);
+    return null;
+  }
+};
 
 const initialUser: User = {
   userId: "",
@@ -48,6 +67,7 @@ const settingsTabs = [
   { key: "about", label: "About" },
   { key: "feedback", label: "Send Feedback" },
   { key: "terms", label: "Terms of Service" },
+  { key: "delete", label: "Delete Account" },
 ];
 
 export function ProfilePage() {
@@ -59,6 +79,8 @@ export function ProfilePage() {
   const [activeTab, setActiveTab] = useState("listings");
   const [userPlantListings, setUserPlantListings] = useState<Plant[]>([]);
   const [userSavedListings, setUserSavedListings] = useState<Plant[]>([]);
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   // Fetch user data from API on mount
   useEffect(() => {
@@ -98,6 +120,10 @@ export function ProfilePage() {
       }
     }
     fetchUserAndPlants();
+    async function logoutWhenNoUser() {
+      await getUser(logout);
+    }
+    logoutWhenNoUser();
   }, []);
 
   // Handle avatar file upload
@@ -121,6 +147,11 @@ export function ProfilePage() {
     });
     setIsEditing(false);
   };
+
+  const handleDeleteAccount = () => {
+    deleteCurrentUser();
+    navigate("/");
+  }
 
   // Cancel editing
   const handleCancel = () => {
@@ -336,6 +367,14 @@ export function ProfilePage() {
             <h3 className="text-lg font-medium text-green-700 mb-2">Terms of Service</h3>
             <p className="text-gray-500 text-sm">By using Thumr, you agree to our terms of service and privacy policy.</p>
             <a href="#" className="text-green-600 underline">View Full Terms</a>
+          </div>
+        )}
+
+        {activeTab === "delete" && (
+          <div className="p-6 bg-white rounded-lg shadow border border-green-100">
+            <h3 className="text-lg font-medium text-green-700 mb-2">Delete Account</h3>
+            <p className="text-gray-500 text-sm">Are you sure you want to delete your account? This action cannot be undone.</p>
+            <Button onClick={handleDeleteAccount} className="bg-red-600 hover:bg-red-700 text-white">Delete Account</Button>
           </div>
         )}
       </div>
