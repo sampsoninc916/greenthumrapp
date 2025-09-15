@@ -8,8 +8,8 @@ import { User } from "../interfaces/User";
 import { API_ENDPOINTS } from "../config/amplify";
 import { apiClient } from "../services/auth";
 import { getCurrentUser } from "aws-amplify/auth";
-import { deleteCurrentUser, useAuth } from "../contexts/AuthContext";
-import { get } from "react-hook-form";
+import { useAuth } from "../contexts/AuthContext";
+import { AccountDeletedModal } from "./AccountDeletedModal";
  
 interface Review {
   rating: number;
@@ -79,7 +79,8 @@ export function ProfilePage() {
   const [activeTab, setActiveTab] = useState("listings");
   const [userPlantListings, setUserPlantListings] = useState<Plant[]>([]);
   const [userSavedListings, setUserSavedListings] = useState<Plant[]>([]);
-  const { logout } = useAuth();
+  const [showDeletedModal, setShowDeletedModal] = useState(false);
+  const { deleteAccount } = useAuth();
   const navigate = useNavigate();
 
   // Fetch user data from API on mount
@@ -120,10 +121,6 @@ export function ProfilePage() {
       }
     }
     fetchUserAndPlants();
-    async function logoutWhenNoUser() {
-      await getUser(logout);
-    }
-    logoutWhenNoUser();
   }, []);
 
   // Handle avatar file upload
@@ -149,8 +146,8 @@ export function ProfilePage() {
   };
 
   const handleDeleteAccount = () => {
-    deleteCurrentUser();
-    navigate("/");
+    deleteAccount();
+    setShowDeletedModal(true);
   }
 
   // Cancel editing
@@ -377,6 +374,10 @@ export function ProfilePage() {
             <Button onClick={handleDeleteAccount} className="bg-red-600 hover:bg-red-700 text-white">Delete Account</Button>
           </div>
         )}
+        <AccountDeletedModal isOpen={showDeletedModal} onClose={() => {
+          setShowDeletedModal(false);
+          navigate("/");
+        }} />
       </div>
     </div>
   );

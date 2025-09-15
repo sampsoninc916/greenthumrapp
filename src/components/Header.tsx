@@ -31,11 +31,6 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
     onSearch(searchQuery);
   };
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/');
-    }
-  }, [isAuthenticated, user]);
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-green-100">

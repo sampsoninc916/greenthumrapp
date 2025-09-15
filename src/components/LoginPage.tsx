@@ -48,7 +48,7 @@ export function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-green-600 px-4 py-4 flex items-center">
-        <h1 className="text-white text-lg" style={{ color: '#ffffff', fontWeight: 500 }}>
+        <h1 className="text-white text-lg" style={{ color: '#ffffff', fontWeight: 500, cursor: 'pointer' }} onClick={() => navigate("/")}>
           Thumr
         </h1>
       </div>
