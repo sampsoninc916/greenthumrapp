@@ -20,6 +20,7 @@ export function SignupPage() {
   const [success, setSuccess] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [phone, setPhone] = useState("");
   const navigate = useNavigate();
   const { signup, confirmSignup, login, isAuthenticated } = useAuth();
 
@@ -106,7 +107,7 @@ export function SignupPage() {
       if (token) {
         await authService.authenticatedFetch(API_ENDPOINTS.USERS_WRITE, {
           method: 'POST',
-          body: JSON.stringify({ userId }),
+          body: JSON.stringify({ userId, phone }),
           requiresAuth: true
         });
       }
@@ -170,6 +171,14 @@ export function SignupPage() {
               style={{ backgroundColor: '#f3f3f5' }}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+            />
+            <Input
+              type="text"
+              placeholder="Enter phone number (optional)"
+              className="w-full h-12 bg-gray-100 border-0 rounded-lg px-4"
+              style={{ backgroundColor: '#f3f3f5' }}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
             />
             <Input
               type="password"

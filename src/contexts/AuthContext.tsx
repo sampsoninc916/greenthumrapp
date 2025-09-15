@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   signIn, 
   signOut, 
@@ -41,18 +40,6 @@ export const useAuth = () => {
 interface AuthProviderProps {
   children: ReactNode;
 }
-
-export async function deleteCurrentUser() {
-  try {
-    const user = await getCurrentUser();
-    if (user) {
-      await deleteUser();
-    }
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    throw error;
-  }
-};
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
