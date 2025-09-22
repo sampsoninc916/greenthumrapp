@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Search, Plus, User, Menu, LogOut, Heart } from 'lucide-react';
+import { Search, Plus, User, Menu, LogOut, Heart, ShoppingCart, CreditCard } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Link, useNavigate } from 'react-router-dom';
 import GreenThumrLogo from './assets/ThumrCircleLogo.png';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
+import { formatCurrency } from '../utils/currency';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,12 +26,18 @@ interface HeaderProps {
 export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { isAuthenticated, logout, user, role } = useAuth();
+  const { totals } = useCart();
   const navigate = useNavigate();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     onSearch(searchQuery);
   };
+
+  const cartCount = totals.itemCount;
+  const cartTotalLabel = cartCount > 0 ? formatCurrency(totals.total) : null;
+  const cartBadgeContent = cartCount > 99 ? '99+' : String(cartCount);
+  const cartButtonLabel = cartCount > 0 ? `Cart · ${cartTotalLabel}` : 'Cart';
 
 
   return (
@@ -70,6 +78,26 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="relative"
+            onClick={() => navigate('/cart')}
+          >
+            <ShoppingCart className="h-5 w-5" />
+            {cartCount > 0 && (
+              <Badge
+                variant="default"
+                className="absolute -top-1 -right-1 h-5 min-w-[1.25rem] px-1 flex items-center justify-center text-[10px]"
+              >
+                {cartBadgeContent}
+              </Badge>
+            )}
+            <span className="hidden lg:flex ml-2 text-sm font-medium text-green-700">
+              {cartButtonLabel}
+            </span>
+          </Button>
+
           {!isAuthenticated ? (
             // Show login/signup when not authenticated
             <>
@@ -127,13 +155,6 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="relative">
                     <User className="h-5 w-5" />
-                    {/* Optional: Show notification badge */}
-                    <Badge
-                      variant="destructive"
-                      className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
-                    >
-                      3
-                    </Badge>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -159,6 +180,19 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
                     <DropdownMenuItem onClick={() => navigate('/profile#saved')}>
                       <Heart className="mr-2 h-4 w-4" />
                       Saved Listings
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => navigate('/cart')}>
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                    Cart
+                    {cartCount > 0 && (
+                      <span className="ml-auto text-xs text-muted-foreground">{cartCount}</span>
+                    )}
+                  </DropdownMenuItem>
+                  {cartCount > 0 && (
+                    <DropdownMenuItem onClick={() => navigate('/checkout')}>
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Checkout
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />

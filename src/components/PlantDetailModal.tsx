@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft } from 'lucide-react';
+import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft, ShoppingCart } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -9,6 +9,7 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { StarRating } from "./StarRating";
 import { EditListingScreen } from './EditListingScreen';
 import { Plant } from '../interfaces/Plant';
+import { useCart } from '../contexts/CartContext';
 import { API_ENDPOINTS } from '../config/amplify';
 import { apiClient } from '../services/auth';
 
@@ -29,6 +30,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
   const [plantName, setPlantName] = useState(plant ? plant.name : "");
   const [showBackAlert, setShowBackAlert] = useState(false);
   const [currentPlant, setCurrentPlant] = useState<Plant | null>(plant);
+  const { addItem, isInCart } = useCart();
 
   // Handle window resize with cleanup
   useEffect(() => {
@@ -62,6 +64,8 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
   };
 
   if (!currentPlant) return null;
+
+  const alreadyInCart = isInCart(currentPlant.id);
 
   const getConditionColor = (condition: string) => {
     switch (condition) {
@@ -294,6 +298,13 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
 
                 {/* Actions */}
                 <div className="space-y-3">
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={() => addItem(currentPlant)}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    {alreadyInCart ? 'Add another to cart' : 'Add to cart'}
+                  </Button>
                   <Button className="w-full bg-green-600 hover:bg-green-700">
                     Contact Seller
                   </Button>
