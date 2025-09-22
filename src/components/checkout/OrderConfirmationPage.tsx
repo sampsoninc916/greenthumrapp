@@ -75,7 +75,7 @@ export const OrderConfirmationPage = () => {
               </div>
             </div>
             <p className="text-muted-foreground">
-              Thank you for supporting the GreenThumr community. Your seller has been notified and will reach out soon to
+              Thank you for supporting the Thumr community. Your seller has been notified and will reach out soon to
               coordinate the next steps.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">

@@ -250,7 +250,7 @@ export const CheckoutPage = () => {
                     <h2 className="text-lg font-medium text-green-900">Payment details</h2>
                     <p className="text-sm text-muted-foreground flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-green-600" />
-                      Payments are securely processed. No sensitive card data is stored on GreenThumr.
+                      Payments are securely processed. No sensitive card data is stored on Thumr.
                     </p>
                   </div>
 
