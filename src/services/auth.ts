@@ -9,6 +9,17 @@ class AuthService {
 
   private constructor() {}
 
+  private extractRole(payload: Record<string, any> | undefined): string | null {
+    if (!payload) {
+      return null;
+    }
+    const rawRole = (payload["custom:role"] ?? payload["role"]) as string | undefined;
+    if (rawRole === "buyer" || rawRole === "seller") {
+      return rawRole;
+    }
+    return null;
+  }
+
   static getInstance(): AuthService {
     if (!AuthService.instance) {
       AuthService.instance = new AuthService();
@@ -34,20 +45,34 @@ class AuthService {
    */
   async authenticatedFetch(url: string, config: RequestConfig = {}): Promise<Response> {
     const { requiresAuth = true, ...fetchConfig } = config;
+    let role: string | null = null;
 
     if (requiresAuth) {
-      const token = await this.getToken();
-      
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
       if (!token) {
         throw new Error('No authentication token available');
       }
 
+      role = this.extractRole(session.tokens?.idToken?.payload);
+
       // Add Authorization header
-      fetchConfig.headers = {
-        ...fetchConfig.headers,
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
+      const existingHeaders = new Headers(fetchConfig.headers as HeadersInit | undefined);
+      existingHeaders.set('Authorization', `Bearer ${token}`);
+      if (!existingHeaders.has('Content-Type')) {
+        existingHeaders.set('Content-Type', 'application/json');
+      }
+      if (role) {
+        existingHeaders.set('X-User-Role', role);
+      }
+      fetchConfig.headers = existingHeaders;
+    } else if (fetchConfig.body) {
+      const existingHeaders = new Headers(fetchConfig.headers as HeadersInit | undefined);
+      if (!existingHeaders.has('Content-Type')) {
+        existingHeaders.set('Content-Type', 'application/json');
+      }
+      fetchConfig.headers = existingHeaders;
     }
 
     const response = await fetch(url, fetchConfig);
@@ -57,13 +82,16 @@ class AuthService {
       // Token might be expired, try to refresh
       const session = await fetchAuthSession({ forceRefresh: true });
       const newToken = session.tokens?.idToken?.toString();
-      
+      role = this.extractRole(session.tokens?.idToken?.payload);
+
       if (newToken) {
         // Retry with new token
-        fetchConfig.headers = {
-          ...fetchConfig.headers,
-          'Authorization': `Bearer ${newToken}`,
-        };
+        const retryHeaders = new Headers(fetchConfig.headers as HeadersInit | undefined);
+        retryHeaders.set('Authorization', `Bearer ${newToken}`);
+        if (role) {
+          retryHeaders.set('X-User-Role', role);
+        }
+        fetchConfig.headers = retryHeaders;
         return fetch(url, fetchConfig);
       } else {
         // Redirect to login if refresh fails

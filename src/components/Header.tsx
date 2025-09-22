@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Search, Plus, User, Menu, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Plus, User, Menu, LogOut, Heart } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
@@ -23,7 +23,7 @@ interface HeaderProps {
 
 export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const { isAuthenticated, logout, user } = useAuth();
+  const { isAuthenticated, logout, user, role } = useAuth();
   const navigate = useNavigate();
 
   const handleSearch = (e: React.FormEvent) => {
@@ -102,21 +102,25 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
           ) : (
             // Show user actions when authenticated
             <>
-              <Button
-                onClick={onAddListing}
-                className="hidden sm:flex bg-green-600 hover:bg-green-700 text-white"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Sell Plant
-              </Button>
+              {role === 'seller' && (
+                <>
+                  <Button
+                    onClick={onAddListing}
+                    className="hidden sm:flex bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Sell Plant
+                  </Button>
 
-              <Button
-                onClick={onAddListing}
-                className="sm:hidden bg-green-600 hover:bg-green-700 text-white"
-                size="sm"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
+                  <Button
+                    onClick={onAddListing}
+                    className="sm:hidden bg-green-600 hover:bg-green-700 text-white"
+                    size="sm"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
 
               {/* User dropdown menu */}
               <DropdownMenu>
@@ -134,19 +138,31 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
-                    {user?.username || 'My Account'}
+                    <div className="flex flex-col">
+                      <span>{user?.username || 'My Account'}</span>
+                      {role && (
+                        <span className="text-xs capitalize text-gray-500">{role} account</span>
+                      )}
+                    </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate('/profile')}>
                     <User className="mr-2 h-4 w-4" />
                     Profile
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/profile#listings')}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    My Listings
-                  </DropdownMenuItem>
+                  {role === 'seller' ? (
+                    <DropdownMenuItem onClick={() => navigate('/profile#listings')}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      My Listings
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={() => navigate('/profile#saved')}>
+                      <Heart className="mr-2 h-4 w-4" />
+                      Saved Listings
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={async () => {
                       await logout();
                       navigate('/');

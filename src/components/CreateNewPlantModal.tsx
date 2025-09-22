@@ -30,7 +30,8 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   const [error, setError] = useState('');
   const maxFileSize = 50 * 1024 * 1024; // 50MB
   
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, role } = useAuth();
+  const isSeller = role === "seller";
   const navigate = useNavigate();
 
   // Redirect to login if not authenticated
@@ -38,6 +39,27 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     onClose();
     navigate('/login', { state: { from: { pathname: '/', action: 'add-listing' } } });
     return null;
+  }
+
+  if (isOpen && isAuthenticated && !isSeller) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-lg">
+          <div className="space-y-4 py-4">
+            <h2 className="text-lg font-semibold text-green-700">Seller access required</h2>
+            <p className="text-sm text-gray-600">
+              Only seller accounts can create new plant listings. Update your account settings to become a seller and start
+              listing your plants for sale.
+            </p>
+            <div className="flex justify-end">
+              <Button onClick={onClose} className="bg-green-600 hover:bg-green-700 text-white">
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   const fileToBase64 = (file: File): Promise<string> => {
@@ -68,6 +90,11 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
 
   const handleSubmit = async () => {
     // Validation
+    if (!isSeller) {
+      setError('Only seller accounts can create listings');
+      return;
+    }
+
     if (!plantName || !price || !location || !category || !condition) {
       setError('Please fill in all required fields');
       return;
@@ -103,7 +130,8 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     };
     const bodyJSON = {
       plant: plantData,
-      files: base64files
+      files: base64files,
+      role: role ?? undefined
     };
 
       // Use authenticated fetch for creating listings

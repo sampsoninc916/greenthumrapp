@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  signIn, 
-  signOut, 
-  getCurrentUser, 
+import {
+  signIn,
+  signOut,
+  getCurrentUser,
   fetchAuthSession,
   signUp,
   confirmSignUp,
@@ -14,6 +14,8 @@ import { configureAmplify, SECURITY_CONFIG } from '../config/amplify';
 // Configure Amplify once
 configureAmplify();
 
+type UserRole = 'buyer' | 'seller';
+
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
@@ -21,10 +23,11 @@ interface AuthContextType {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  signup: (username: string, password: string, email: string, name: string) => Promise<void>;
+  signup: (username: string, password: string, email: string, name: string, role: UserRole) => Promise<void>;
   confirmSignup: (username: string, code: string) => Promise<void>;
   refreshToken: () => Promise<void>;
   deleteAccount: () => Promise<void>;
+  role: UserRole | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,21 +48,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [role, setRole] = useState<UserRole | null>(null);
 
   const storage = SECURITY_CONFIG.TOKEN_STORAGE === 'local' ? localStorage : sessionStorage;
+
+  const extractRoleFromPayload = (payload: Record<string, any> | undefined): UserRole | null => {
+    if (!payload) {
+      return null;
+    }
+    const rawRole = (payload['custom:role'] ?? payload['role']) as string | undefined;
+    if (rawRole === 'buyer' || rawRole === 'seller') {
+      return rawRole;
+    }
+    return null;
+  };
 
   const loadUserSession = async () => {
     try {
       const currentUser = await getCurrentUser();
       const session = await fetchAuthSession();
-      
+
       if (session.tokens?.idToken) {
         setUser(currentUser);
         setToken(session.tokens.idToken.toString());
-        
+        setRole(extractRoleFromPayload(session.tokens.idToken.payload));
+
         // Store token in sessionStorage for better security
         storage.setItem('authToken', session.tokens.idToken.toString());
-        
+
         // Set up token refresh before expiry
         const expiryTime = session.tokens.idToken.payload.exp;
         if (expiryTime && typeof expiryTime === 'number') {
@@ -75,6 +91,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // User is not authenticated
       setUser(null);
       setToken(null);
+      setRole(null);
       storage.removeItem('authToken');
     } finally {
       setIsLoading(false);
@@ -102,6 +119,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await signOut();
       setUser(null);
       setToken(null);
+      setRole(null);
       storage.removeItem('authToken');
     } catch (error) {
       console.error('Logout error:', error);
@@ -109,16 +127,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signup = async (username: string, password: string, email: string, name: string) => {
+  const signup = async (username: string, password: string, email: string, name: string, role: UserRole) => {
     try {
       await signUp({
         username,
         password,
         options: {
-          userAttributes: { 
-            preferred_username: username, 
-            email, 
-            name 
+          userAttributes: {
+            preferred_username: username,
+            email,
+            name,
+            'custom:role': role
           }
         }
       });
@@ -142,8 +161,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const session = await fetchAuthSession({ forceRefresh: true });
       if (session.tokens?.idToken) {
         setToken(session.tokens.idToken.toString());
+        setRole(extractRoleFromPayload(session.tokens.idToken.payload));
         storage.setItem('authToken', session.tokens.idToken.toString());
-        
+
         // Set up next refresh
         const expiryTime = session.tokens.idToken.payload.exp;
         if (expiryTime && typeof expiryTime === 'number') {
@@ -169,6 +189,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await deleteUser();
         setUser(null);
         setToken(null);
+        setRole(null);
         storage.removeItem('authToken');
       }
     } catch (error) {
@@ -187,7 +208,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signup,
     confirmSignup,
     refreshToken,
-    deleteAccount
+    deleteAccount,
+    role
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -57,7 +57,7 @@ const initialUser: User = {
   // reviews: [],
 };
 
-const settingsTabs = [
+const baseSettingsTabs = [
   { key: "listings", label: "My Listings" },
   { key: "saved", label: "Saved Listings" },
   { key: "subscription", label: "Subscription" },
@@ -76,12 +76,27 @@ export function ProfilePage() {
   const [editDescription, setEditDescription] = useState(user.description);
   const [editAvatar, setEditAvatar] = useState(user.profilePic);
   const [editFullName, setEditFullName] = useState(user.fullName);
-  const [activeTab, setActiveTab] = useState("listings");
+  const [activeTab, setActiveTab] = useState("saved");
   const [userPlantListings, setUserPlantListings] = useState<Plant[]>([]);
   const [userSavedListings, setUserSavedListings] = useState<Plant[]>([]);
   const [showDeletedModal, setShowDeletedModal] = useState(false);
-  const { deleteAccount } = useAuth();
+  const { deleteAccount, role } = useAuth();
+  const isSeller = role === "seller";
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isSeller) {
+      setActiveTab(prev => (prev === "saved" ? "seller-dashboard" : prev));
+    } else if (role === "buyer") {
+      setActiveTab(prev => (prev === "listings" || prev === "seller-dashboard" ? "saved" : prev));
+    } else {
+      setActiveTab(prev => (prev === "seller-dashboard" ? "saved" : prev));
+    }
+  }, [isSeller, role]);
+
+  const settingsTabs = isSeller
+    ? [{ key: "seller-dashboard", label: "Seller Dashboard" }, ...baseSettingsTabs]
+    : baseSettingsTabs.filter(tab => tab.key !== "listings");
 
   // Fetch user data from API on mount
   useEffect(() => {
@@ -205,6 +220,11 @@ export function ProfilePage() {
           )}
         </div>
         <h2 className="text-2xl font-semibold text-green-800">{user.fullName}</h2>
+        {role && (
+          <span className="mt-1 inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium capitalize text-green-700">
+            {role} account
+          </span>
+        )}
         {isEditing ? (
           <>
             <span className="text-green-800 text-md">Edit Name</span>
@@ -268,7 +288,27 @@ export function ProfilePage() {
 
       {/* Tab Content */}
       <div className="w-full max-w-4xl">
-        {activeTab === "listings" && (
+        {activeTab === "seller-dashboard" && isSeller && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card className="p-4 border border-green-100 bg-white">
+              <p className="text-xs uppercase text-gray-500 tracking-wide">Active Listings</p>
+              <p className="mt-2 text-2xl font-semibold text-green-700">{userPlantListings.length}</p>
+              <p className="text-xs text-gray-500">Manage and update your plant listings.</p>
+            </Card>
+            <Card className="p-4 border border-green-100 bg-white">
+              <p className="text-xs uppercase text-gray-500 tracking-wide">Saved Leads</p>
+              <p className="mt-2 text-2xl font-semibold text-green-700">{userSavedListings.length}</p>
+              <p className="text-xs text-gray-500">Keep track of interested buyers.</p>
+            </Card>
+            <Card className="p-4 border border-green-100 bg-white">
+              <p className="text-xs uppercase text-gray-500 tracking-wide">Member Since</p>
+              <p className="mt-2 text-2xl font-semibold text-green-700">{user.joinedDate || '—'}</p>
+              <p className="text-xs text-gray-500">Grow your business with Thumr.</p>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === "listings" && isSeller && (
           <>
             <h3 className="text-lg font-medium text-green-700 mb-4">My Listings</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
