@@ -21,6 +21,7 @@ export function SignupPage() {
   const [confirm, setConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [phone, setPhone] = useState("");
+  const [selectedRole, setSelectedRole] = useState<"buyer" | "seller" | "">("");
   const navigate = useNavigate();
   const { signup, confirmSignup, login, isAuthenticated } = useAuth();
 
@@ -64,6 +65,11 @@ export function SignupPage() {
       return;
     }
 
+    if (!selectedRole) {
+      setError('Please select whether you are signing up as a buyer or seller');
+      return;
+    }
+
     if (!validateEmail(email)) {
       setError('Please enter a valid email address');
       return;
@@ -79,7 +85,7 @@ export function SignupPage() {
     setError('');
 
     try {
-      await signup(userName, password, email, name);
+      await signup(userName, password, email, name, selectedRole as "buyer" | "seller");
       setSuccess(true);
     } catch (err: any) {
       setError(err.message || 'Failed to sign up. Please try again.');
@@ -107,7 +113,7 @@ export function SignupPage() {
       if (token) {
         await authService.authenticatedFetch(API_ENDPOINTS.USERS_WRITE, {
           method: 'POST',
-          body: JSON.stringify({ userId, phone }),
+          body: JSON.stringify({ userId, phone, role: selectedRole || undefined }),
           requiresAuth: true
         });
       }
@@ -188,6 +194,35 @@ export function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">I want to:</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className={`flex-1 h-12 rounded-lg border px-4 text-sm font-medium transition-colors ${
+                    selectedRole === "buyer"
+                      ? "border-green-600 bg-green-50 text-green-700"
+                      : "border-gray-200 bg-white text-gray-700"
+                  }`}
+                  onClick={() => setSelectedRole("buyer")}
+                  aria-pressed={selectedRole === "buyer"}
+                >
+                  Buy Plants
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 h-12 rounded-lg border px-4 text-sm font-medium transition-colors ${
+                    selectedRole === "seller"
+                      ? "border-green-600 bg-green-50 text-green-700"
+                      : "border-gray-200 bg-white text-gray-700"
+                  }`}
+                  onClick={() => setSelectedRole("seller")}
+                  aria-pressed={selectedRole === "seller"}
+                >
+                  Sell Plants
+                </button>
+              </div>
+            </div>
 
             {/* Continue Button */}
             <Button
