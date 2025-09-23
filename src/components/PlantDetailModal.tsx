@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { StarRating } from "./StarRating";
 import { EditListingScreen } from './EditListingScreen';
@@ -20,6 +21,12 @@ import { messagesService } from '../services/messages';
 import type { MessageThread, ThreadMessage } from '../services/messages';
 import { reviewsService } from '../services/reviews';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  DELIVERY_METHOD_LABEL_LOOKUP,
+  extractStateCode,
+  formatZipRange,
+  getProhibitedStateMessage,
+} from '../constants/fulfillmentRules';
 
 interface PlantDetailModalProps {
   plant: Plant | null;
@@ -121,6 +128,33 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
   if (!currentPlant) return null;
 
   const alreadyInCart = isInCart(currentPlant.id);
+  const deliveryMethods = Array.isArray(currentPlant.deliveryMethods)
+    ? currentPlant.deliveryMethods
+    : [];
+  const zipRanges = Array.isArray(currentPlant.availableZipRanges)
+    ? currentPlant.availableZipRanges
+    : [];
+  const formattedZipRanges = zipRanges
+    .map((range) => {
+      if (!range || typeof range.start !== 'string' || typeof range.end !== 'string') {
+        return null;
+      }
+      return formatZipRange({ start: range.start, end: range.end });
+    })
+    .filter((value): value is string => Boolean(value));
+  const packagingNotes = (currentPlant.packagingNotes ?? '').trim();
+  const normalizedWarranty = currentPlant.livePlantWarranty ?? { isOffered: false };
+  const hasWarrantyDetails =
+    normalizedWarranty.isOffered ||
+    typeof normalizedWarranty.durationDays === 'number' ||
+    Boolean(normalizedWarranty.notes);
+  const hasFulfillmentDetails =
+    deliveryMethods.length > 0 ||
+    formattedZipRanges.length > 0 ||
+    Boolean(packagingNotes) ||
+    hasWarrantyDetails;
+  const locationStateCode = extractStateCode(currentPlant.location);
+  const prohibitedStateMessage = getProhibitedStateMessage(locationStateCode, deliveryMethods);
 
   const getConditionColor = (condition: string) => {
     switch (condition) {
@@ -383,12 +417,15 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
     }
   };
 
-  const handleListingSave = async (updatedPlant: Plant, changedFields: Set<keyof Plant>) => {
+  const handleListingSave = async (
+    updatedPlant: Plant,
+    changedFields: Set<keyof Plant>,
+  ) => {
     // Only send the fields that were actually changed
-    const changedData: Partial<Plant> = {};
+    const changedData: Partial<Record<keyof Plant, Plant[keyof Plant]>> = {};
 
     // Build object with only changed fields
-    changedFields.forEach(field => {
+    changedFields.forEach((field) => {
       changedData[field] = updatedPlant[field];
     });
     
@@ -572,17 +609,94 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
                     <p className="mt-1">{currentPlant.description}</p>
                   </div>
 
-                  <div>
-                    <span className="text-muted-foreground">Care Instructions:</span>
-                    <p className="mt-1">{currentPlant.careInstructions}</p>
-                  </div>
+                <div>
+                  <span className="text-muted-foreground">Care Instructions:</span>
+                  <p className="mt-1">{currentPlant.careInstructions}</p>
                 </div>
+              </div>
 
-                <Separator />
+              <Separator />
 
-                {/* Actions */}
-                <div className="space-y-3">
-                  <Button
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-base font-semibold text-green-700">Shipping &amp; Delivery</h3>
+                  <p className="text-sm text-gray-600">
+                    Fulfillment guidance approved for this listing.
+                  </p>
+                </div>
+                <div className="space-y-3 text-sm">
+                  {deliveryMethods.length > 0 ? (
+                    <div>
+                      <span className="text-muted-foreground">Available methods:</span>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {deliveryMethods.map((method) => (
+                          <Badge
+                            key={method}
+                            variant="outline"
+                            className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                          >
+                            {DELIVERY_METHOD_LABEL_LOOKUP.get(method) ?? method.replace(/_/g, ' ')}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {formattedZipRanges.length > 0 && (
+                    <div>
+                      <span className="text-muted-foreground">Ship-to ZIP ranges:</span>
+                      <p className="mt-1">{formattedZipRanges.join(', ')}</p>
+                    </div>
+                  )}
+                  {packagingNotes && (
+                    <div>
+                      <span className="text-muted-foreground">Packaging notes:</span>
+                      <p className="mt-1 whitespace-pre-line">{packagingNotes}</p>
+                    </div>
+                  )}
+                  {hasWarrantyDetails ? (
+                    <div>
+                      <span className="text-muted-foreground">Live-plant warranty:</span>
+                      <p className="mt-1">
+                        {normalizedWarranty.isOffered
+                          ? `Warranty offered${
+                              normalizedWarranty.durationDays
+                                ? ` for ${normalizedWarranty.durationDays} day${
+                                    normalizedWarranty.durationDays === 1 ? '' : 's'
+                                  }`
+                                : ''
+                            }.`
+                          : 'No live-plant warranty advertised.'}
+                      </p>
+                      {normalizedWarranty.notes && (
+                        <p className="mt-1 whitespace-pre-line">{normalizedWarranty.notes}</p>
+                      )}
+                    </div>
+                  ) : null}
+                  {!hasFulfillmentDetails && (
+                    <p className="text-muted-foreground">
+                      Seller has not published shipping, delivery, or warranty details for this listing yet.
+                    </p>
+                  )}
+                  {!hasWarrantyDetails && hasFulfillmentDetails && (
+                    <div>
+                      <span className="text-muted-foreground">Live-plant warranty:</span>
+                      <p className="mt-1">No live-plant warranty advertised.</p>
+                    </div>
+                  )}
+                </div>
+                {prohibitedStateMessage && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Shipping restriction</AlertTitle>
+                    <AlertDescription>{prohibitedStateMessage}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Actions */}
+              <div className="space-y-3">
+                <Button
                     className="w-full bg-green-600 hover:bg-green-700"
                     onClick={() => addItem(currentPlant)}
                   >

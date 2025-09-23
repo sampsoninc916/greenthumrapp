@@ -1,19 +1,29 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Image } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
 import { Button } from './ui/button';
-import { v4 as uuidv4 } from 'uuid';
+import { Checkbox } from './ui/checkbox';
+import { Label } from './ui/label';
+import { Switch } from './ui/switch';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
 import { API_ENDPOINTS } from '../config/amplify';
+import type { DeliveryMethod, LivePlantWarranty } from '../interfaces/Plant';
+import {
+  DELIVERY_METHOD_OPTIONS,
+  extractStateCode,
+  getDeliveryCombinationError,
+  getProhibitedStateMessage,
+  parseZipRanges,
+  requiresZipRanges,
+} from '../constants/fulfillmentRules';
 
 interface CreateNewPlantModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-type UploadPlan = { file: File; url: string; headers: Record<string,string> };
 
 export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProps) {
   const [files, setFiles] = useState<File[]>([]);
@@ -26,6 +36,14 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   const [careInstructions, setCareInstructions] = useState('');
   const [potSize, setPotSize] = useState('');
   const [height, setHeight] = useState('');
+  const [deliveryMethods, setDeliveryMethods] = useState<DeliveryMethod[]>([]);
+  const [zipRangeInput, setZipRangeInput] = useState('');
+  const [zipRangeError, setZipRangeError] = useState<string | null>(null);
+  const [packagingNotes, setPackagingNotes] = useState('');
+  const [warrantyOffered, setWarrantyOffered] = useState(false);
+  const [warrantyDuration, setWarrantyDuration] = useState('');
+  const [warrantyNotes, setWarrantyNotes] = useState('');
+  const [deliveryValidationAttempted, setDeliveryValidationAttempted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const maxFileSize = 50 * 1024 * 1024; // 50MB
@@ -33,6 +51,28 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   const { isAuthenticated, role } = useAuth();
   const isSeller = role === "seller";
   const navigate = useNavigate();
+  const deliveryMethodOrder = useMemo(
+    () => DELIVERY_METHOD_OPTIONS.map((option) => option.value),
+    [],
+  );
+  const inlineCombinationError = useMemo(() => {
+    if (deliveryMethods.length === 0) {
+      return null;
+    }
+    return getDeliveryCombinationError(deliveryMethods);
+  }, [deliveryMethods]);
+  const shippingSelected = useMemo(
+    () => requiresZipRanges(deliveryMethods),
+    [deliveryMethods],
+  );
+  const locationStateCode = useMemo(
+    () => extractStateCode(location),
+    [location],
+  );
+  const prohibitedStateMessage = useMemo(
+    () => getProhibitedStateMessage(locationStateCode, deliveryMethods),
+    [locationStateCode, deliveryMethods],
+  );
 
   // Redirect to login if not authenticated
   if (!isAuthenticated && isOpen) {
@@ -62,6 +102,32 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     );
   }
 
+  const toggleDeliveryMethod = (method: DeliveryMethod, checked: boolean) => {
+    setDeliveryMethods((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(method);
+      } else {
+        next.delete(method);
+      }
+      return deliveryMethodOrder.filter((value) => next.has(value));
+    });
+  };
+
+  const handleZipRangeBlur = () => {
+    if (!zipRangeInput) {
+      setZipRangeError(null);
+      return;
+    }
+
+    const { invalidEntries } = parseZipRanges(zipRangeInput);
+    if (invalidEntries.length > 0) {
+      setZipRangeError(`Invalid ZIP entries: ${invalidEntries.join(', ')}`);
+    } else {
+      setZipRangeError(null);
+    }
+  };
+
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -89,35 +155,86 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   };
 
   const handleSubmit = async () => {
-    // Validation
     if (!isSeller) {
       setError('Only seller accounts can create listings');
       return;
     }
 
+    setDeliveryValidationAttempted(true);
+
     if (!plantName || !price || !location || !category || !condition) {
       setError('Please fill in all required fields');
       return;
     }
-    
+
     if (files.length === 0) {
       setError('Please upload at least one image');
       return;
     }
 
+    const combinationValidationError = getDeliveryCombinationError(deliveryMethods);
+    if (combinationValidationError) {
+      setError(combinationValidationError);
+      return;
+    }
+
+    const { ranges, invalidEntries } = parseZipRanges(zipRangeInput);
+
+    if (invalidEntries.length > 0) {
+      setZipRangeError(`Invalid ZIP entries: ${invalidEntries.join(', ')}`);
+      setError('Please correct the ZIP ranges before submitting.');
+      return;
+    }
+
+    setZipRangeError(null);
+
+    if (shippingSelected && ranges.length === 0) {
+      setError('Add at least one ZIP code or range when shipping is enabled.');
+      return;
+    }
+
+    if (prohibitedStateMessage) {
+      setError(prohibitedStateMessage);
+      return;
+    }
+
+    let warrantyDurationValue: number | undefined;
+    if (warrantyOffered) {
+      warrantyDurationValue = Number(warrantyDuration);
+      if (!Number.isFinite(warrantyDurationValue) || warrantyDurationValue <= 0) {
+        setError('Enter a valid warranty duration in days.');
+        return;
+      }
+    }
+
+    const normalizedWarranty: LivePlantWarranty = warrantyOffered
+      ? {
+          isOffered: true,
+          durationDays: warrantyDurationValue,
+          notes: warrantyNotes.trim() || undefined,
+        }
+      : {
+          isOffered: false,
+          notes: warrantyNotes.trim() || undefined,
+        };
+
+    const normalizedPackagingNotes = packagingNotes.trim();
+
     setIsSubmitting(true);
     setError('');
 
     try {
-    const base64files = await Promise.all(files.map(async (file) => {
-      const base64 = await fileToBase64(file);
-      return {
-        fileName: file.name,
-        fileContentType: file.type || "application/octet-stream",
-        fileBase64: base64
-      };
-    }));
-    const plantData = {
+      const base64files = await Promise.all(
+        files.map(async (file) => {
+          const base64 = await fileToBase64(file);
+          return {
+            fileName: file.name,
+            fileContentType: file.type || "application/octet-stream",
+            fileBase64: base64,
+          };
+        }),
+      );
+      const plantData = {
         name: plantName,
         price,
         location,
@@ -126,13 +243,17 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
         description,
         careInstructions,
         potSize,
-        height
-    };
-    const bodyJSON = {
-      plant: plantData,
-      files: base64files,
-      role: role ?? undefined
-    };
+        height,
+        deliveryMethods,
+        availableZipRanges: ranges,
+        packagingNotes: normalizedPackagingNotes || undefined,
+        livePlantWarranty: normalizedWarranty,
+      };
+      const bodyJSON = {
+        plant: plantData,
+        files: base64files,
+        role: role ?? undefined,
+      };
 
       // Use authenticated fetch for creating listings
       const token = await authService.getToken();
@@ -167,7 +288,15 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
       setCareInstructions('');
       setPotSize('');
       setHeight('');
-      
+      setDeliveryMethods([]);
+      setZipRangeInput('');
+      setZipRangeError(null);
+      setPackagingNotes('');
+      setWarrantyOffered(false);
+      setWarrantyDuration('');
+      setWarrantyNotes('');
+      setDeliveryValidationAttempted(false);
+
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to create listing');
@@ -343,9 +472,128 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                 onChange={(e) => setHeight(e.target.value)}
               />
             </div>
+            <div className="space-y-4 rounded-md border border-gray-200 bg-white/70 p-4">
+              <div>
+                <h3 className="text-base font-semibold text-green-700">Delivery &amp; Fulfillment</h3>
+                <p className="text-sm text-gray-600">
+                  Choose the methods that were approved with fulfillment and add the supporting coverage
+                  details.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {DELIVERY_METHOD_OPTIONS.map((option) => {
+                  const checkboxId = `delivery-${option.value.toLowerCase()}`;
+                  return (
+                    <label
+                      key={option.value}
+                      htmlFor={checkboxId}
+                      className="flex items-start gap-3 rounded-md border border-gray-200/70 bg-white/60 p-3 shadow-sm"
+                    >
+                      <Checkbox
+                        id={checkboxId}
+                        checked={deliveryMethods.includes(option.value)}
+                        onCheckedChange={(checked) =>
+                          toggleDeliveryMethod(option.value, checked === true)
+                        }
+                      />
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-gray-900">{option.label}</p>
+                        <p className="text-xs text-gray-600">{option.description}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              {inlineCombinationError && (deliveryValidationAttempted || deliveryMethods.length > 0) && (
+                <p className="text-sm text-red-600">{inlineCombinationError}</p>
+              )}
+              {(shippingSelected || zipRangeInput) && (
+                <div className="space-y-2">
+                  <Label htmlFor="zipRangeInput">Available ZIP ranges</Label>
+                  <textarea
+                    id="zipRangeInput"
+                    value={zipRangeInput}
+                    onChange={(e) => setZipRangeInput(e.target.value)}
+                    onBlur={handleZipRangeBlur}
+                    rows={shippingSelected ? 3 : 2}
+                    className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                    placeholder="94107 or 75000-75200"
+                  />
+                  <p className="text-xs text-gray-500">
+                    {shippingSelected
+                      ? 'Enter one ZIP or ZIP range per line (##### or #####-#####).'
+                      : 'ZIP ranges are optional unless shipping is enabled.'}
+                  </p>
+                  {zipRangeError && <p className="text-xs text-red-600">{zipRangeError}</p>}
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="packagingNotes">Packaging notes</Label>
+                <textarea
+                  id="packagingNotes"
+                  value={packagingNotes}
+                  onChange={(e) => setPackagingNotes(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                  placeholder="Share insulation materials, heat packs, or handling steps."
+                />
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="warrantySwitch">Offer live-plant warranty</Label>
+                  <Switch
+                    id="warrantySwitch"
+                    checked={warrantyOffered}
+                    onCheckedChange={(checked) => {
+                      setWarrantyOffered(checked);
+                      if (!checked) {
+                        setWarrantyDuration('');
+                      }
+                    }}
+                  />
+                </div>
+                {warrantyOffered && (
+                  <div className="space-y-1">
+                    <Label htmlFor="warrantyDuration">Warranty duration (days)</Label>
+                    <input
+                      id="warrantyDuration"
+                      type="number"
+                      min={1}
+                      value={warrantyDuration}
+                      onChange={(e) => setWarrantyDuration(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                      placeholder="30"
+                    />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label htmlFor="warrantyNotes">
+                    {warrantyOffered ? 'Warranty details' : 'Warranty notes (optional)'}
+                  </Label>
+                  <textarea
+                    id="warrantyNotes"
+                    value={warrantyNotes}
+                    onChange={(e) => setWarrantyNotes(e.target.value)}
+                    rows={warrantyOffered ? 3 : 2}
+                    className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                    placeholder={
+                      warrantyOffered
+                        ? 'Outline care requirements, what is covered, and claim steps.'
+                        : 'Add optional disclaimers about live arrival guarantees.'
+                    }
+                  />
+                </div>
+              </div>
+              {prohibitedStateMessage && (
+                <Alert variant="destructive">
+                  <AlertTitle>Shipping restriction</AlertTitle>
+                  <AlertDescription>{prohibitedStateMessage}</AlertDescription>
+                </Alert>
+              )}
+            </div>
             <div className="flex w-full items-center justify-between rounded-md">
-              <button 
-                className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center disabled:opacity-50" 
+              <button
+                className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center disabled:opacity-50"
                 onClick={handleSubmit}
                 disabled={isSubmitting}
               >
