@@ -14,7 +14,7 @@ class AuthService {
       return null;
     }
     const rawRole = (payload["custom:role"] ?? payload["role"]) as string | undefined;
-    if (rawRole === "buyer" || rawRole === "seller") {
+    if (rawRole === "buyer" || rawRole === "seller" || rawRole === "admin") {
       return rawRole;
     }
     return null;

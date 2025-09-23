@@ -14,7 +14,8 @@ import { configureAmplify, SECURITY_CONFIG } from '../config/amplify';
 // Configure Amplify once
 configureAmplify();
 
-type UserRole = 'buyer' | 'seller';
+export type UserRole = 'buyer' | 'seller' | 'admin';
+type SignupRole = Exclude<UserRole, 'admin'>;
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -23,7 +24,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  signup: (username: string, password: string, email: string, name: string, role: UserRole) => Promise<void>;
+  signup: (username: string, password: string, email: string, name: string, role: SignupRole) => Promise<void>;
   confirmSignup: (username: string, code: string) => Promise<void>;
   refreshToken: () => Promise<void>;
   deleteAccount: () => Promise<void>;
@@ -57,7 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return null;
     }
     const rawRole = (payload['custom:role'] ?? payload['role']) as string | undefined;
-    if (rawRole === 'buyer' || rawRole === 'seller') {
+    if (rawRole === 'buyer' || rawRole === 'seller' || rawRole === 'admin') {
       return rawRole;
     }
     return null;
@@ -127,7 +128,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signup = async (username: string, password: string, email: string, name: string, role: UserRole) => {
+  const signup = async (username: string, password: string, email: string, name: string, role: SignupRole) => {
     try {
       await signUp({
         username,

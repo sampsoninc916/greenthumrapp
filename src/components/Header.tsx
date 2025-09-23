@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Search, Plus, User, Menu, LogOut, Heart, ShoppingCart, CreditCard, MessageCircle } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  User,
+  Menu,
+  LogOut,
+  Heart,
+  ShoppingCart,
+  CreditCard,
+  MessageCircle,
+  ShieldCheck,
+  Gavel,
+  ListChecks,
+} from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
@@ -87,6 +100,8 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
   const messagesBadgeContent = unreadCount > 99 ? '99+' : String(unreadCount);
 
 
+  const isAdmin = role === 'admin';
+
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-green-100">
       <div className="container mx-auto px-4 h-16 flex items-center gap-4">
@@ -165,6 +180,28 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
             </span>
           </Button>
 
+          {isAdmin && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden md:flex items-center gap-2 text-green-700 hover:text-green-900"
+                onClick={() => navigate('/admin/users')}
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Admin
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="md:hidden"
+                onClick={() => navigate('/admin/users')}
+              >
+                <ShieldCheck className="h-5 w-5" />
+              </Button>
+            </>
+          )}
+
           {!isAuthenticated ? (
             // Show login/signup when not authenticated
             <>
@@ -238,6 +275,23 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
                     <User className="mr-2 h-4 w-4" />
                     Profile
                   </DropdownMenuItem>
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => navigate('/admin/users')}>
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        Admin · Users
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('/admin/listings')}>
+                        <ListChecks className="mr-2 h-4 w-4" />
+                        Admin · Listings
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('/admin/disputes')}>
+                        <Gavel className="mr-2 h-4 w-4" />
+                        Admin · Disputes
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   {role === 'seller' ? (
                     <DropdownMenuItem onClick={() => navigate('/profile#listings')}>
                       <Plus className="mr-2 h-4 w-4" />
