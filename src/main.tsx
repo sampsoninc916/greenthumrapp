@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css';
 import './App.css';
 import App from './App'
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { SignupPage } from './components/SignupPage';
 import { LoginPage } from './components/LoginPage';
 import { ProfilePage } from './components/ProfilePage';
@@ -15,6 +15,10 @@ import { CartPage } from './components/checkout/CartPage';
 import { CheckoutPage } from './components/checkout/CheckoutPage';
 import { OrderConfirmationPage } from './components/checkout/OrderConfirmationPage';
 import { Toaster } from 'sonner';
+import { AdminRoute } from './components/AdminRoute';
+import { AdminUsersPage } from './components/admin/AdminUsersPage';
+import { AdminListingsPage } from './components/admin/AdminListingsPage';
+import { AdminDisputesPage } from './components/admin/AdminDisputesPage';
 
 // test to deploy to cloudflare workers pages.
 
@@ -52,6 +56,38 @@ createRoot(document.getElementById('root')!).render(
                   <ProtectedRoute>
                     <ProfilePage />
                   </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <Navigate to="/admin/users" replace />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <AdminRoute>
+                    <AdminUsersPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/listings"
+                element={
+                  <AdminRoute>
+                    <AdminListingsPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/disputes"
+                element={
+                  <AdminRoute>
+                    <AdminDisputesPage />
+                  </AdminRoute>
                 }
               />
               <Route path="*" element={<NotFoundPage />} />
