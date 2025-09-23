@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, Plus, User, Menu, LogOut, Heart, ShoppingCart, CreditCard } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, Plus, User, Menu, LogOut, Heart, ShoppingCart, CreditCard, MessageCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
@@ -8,6 +8,7 @@ import GreenThumrLogo from './assets/ThumrCircleLogo.png';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { formatCurrency } from '../utils/currency';
+import { messagesService } from '../services/messages';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,7 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { isAuthenticated, logout, user, role } = useAuth();
   const { totals } = useCart();
+  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
 
   const handleSearch = (e: React.FormEvent) => {
@@ -34,10 +36,55 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
     onSearch(searchQuery);
   };
 
+  useEffect(() => {
+    let isMounted = true;
+    let interval: ReturnType<typeof setInterval> | undefined;
+
+    const fetchUnreadCount = async () => {
+      if (!isAuthenticated) {
+        if (isMounted) {
+          setUnreadCount(0);
+        }
+        return;
+      }
+
+      try {
+        const count = await messagesService.getUnreadCount();
+        if (isMounted) {
+          setUnreadCount(count);
+        }
+      } catch (error) {
+        console.error('Failed to load unread conversations', error);
+      }
+    };
+
+    fetchUnreadCount();
+
+    if (isAuthenticated) {
+      interval = window.setInterval(fetchUnreadCount, 60000);
+    }
+
+    return () => {
+      isMounted = false;
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isAuthenticated]);
+
+  const handleMessagesClick = () => {
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: { pathname: '/messages' } } });
+      return;
+    }
+    navigate('/messages');
+  };
+
   const cartCount = totals.itemCount;
   const cartTotalLabel = cartCount > 0 ? formatCurrency(totals.total) : null;
   const cartBadgeContent = cartCount > 99 ? '99+' : String(cartCount);
   const cartButtonLabel = cartCount > 0 ? `Cart · ${cartTotalLabel}` : 'Cart';
+  const messagesBadgeContent = unreadCount > 99 ? '99+' : String(unreadCount);
 
 
   return (
@@ -95,6 +142,26 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
             )}
             <span className="hidden lg:flex ml-2 text-sm font-medium text-green-700">
               {cartButtonLabel}
+            </span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="relative"
+            onClick={handleMessagesClick}
+          >
+            <MessageCircle className="h-5 w-5" />
+            {isAuthenticated && unreadCount > 0 && (
+              <Badge
+                variant="default"
+                className="absolute -top-1 -right-1 h-5 min-w-[1.25rem] px-1 flex items-center justify-center text-[10px]"
+              >
+                {messagesBadgeContent}
+              </Badge>
+            )}
+            <span className="hidden lg:flex ml-2 text-sm font-medium text-green-700">
+              Messages
             </span>
           </Button>
 

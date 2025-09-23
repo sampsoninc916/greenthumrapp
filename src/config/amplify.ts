@@ -28,6 +28,12 @@ export const API_ENDPOINTS = {
   USERS_READ: import.meta.env.VITE_API_USERS_READ,
   USERS_WRITE: import.meta.env.VITE_API_USERS_WRITE,
   USERS_UPDATE: import.meta.env.VITE_API_USERS_UPDATE,
+  MESSAGES_THREADS: import.meta.env.VITE_API_MESSAGES_THREADS,
+  MESSAGES_SEND: import.meta.env.VITE_API_MESSAGES_SEND,
+  MESSAGES_MARK_READ: import.meta.env.VITE_API_MESSAGES_MARK_READ,
+  MESSAGES_UNREAD_COUNT: import.meta.env.VITE_API_MESSAGES_UNREAD_COUNT,
+  REVIEWS_SUBMIT: import.meta.env.VITE_API_REVIEWS_SUBMIT,
+  REVIEWS_SUMMARY: import.meta.env.VITE_API_REVIEWS_SUMMARY,
 };
 
 // Validate API endpoints
@@ -35,7 +41,13 @@ const requiredEndpoints = [
   'VITE_API_PLANTS_READ',
   'VITE_API_PLANTS_WRITE',
   'VITE_API_USERS_READ',
-  'VITE_API_USERS_WRITE'
+  'VITE_API_USERS_WRITE',
+  'VITE_API_MESSAGES_THREADS',
+  'VITE_API_MESSAGES_SEND',
+  'VITE_API_MESSAGES_MARK_READ',
+  'VITE_API_MESSAGES_UNREAD_COUNT',
+  'VITE_API_REVIEWS_SUBMIT',
+  'VITE_API_REVIEWS_SUMMARY'
 ];
 
 const missingEndpoints = requiredEndpoints.filter(key => !(import.meta.env as any)[key]);
