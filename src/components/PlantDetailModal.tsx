@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft, ShoppingCart } from 'lucide-react';
+import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft, ShoppingCart, Send, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -8,18 +8,27 @@ import { Separator } from './ui/separator';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { StarRating } from "./StarRating";
 import { EditListingScreen } from './EditListingScreen';
-import { Plant } from '../interfaces/Plant';
+import type { Plant } from '../interfaces/Plant';
 import { useCart } from '../contexts/CartContext';
 import { API_ENDPOINTS } from '../config/amplify';
 import { apiClient } from '../services/auth';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Textarea } from './ui/textarea';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from './ui/drawer';
+import { messagesService } from '../services/messages';
+import type { MessageThread, ThreadMessage } from '../services/messages';
+import { reviewsService } from '../services/reviews';
+import { useAuth } from '../contexts/AuthContext';
 
 interface PlantDetailModalProps {
   plant: Plant | null;
   isOpen: boolean;
   onClose: () => void;
+  onPlantUpdate?: (plant: Plant) => void;
 }
 
-export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalProps) {
+export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: PlantDetailModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
@@ -27,10 +36,18 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [isEditListingScreenOpen, setIsEditListingScreenOpen] = useState(false);
-  const [plantName, setPlantName] = useState(plant ? plant.name : "");
   const [showBackAlert, setShowBackAlert] = useState(false);
   const [currentPlant, setCurrentPlant] = useState<Plant | null>(plant);
   const { addItem, isInCart } = useCart();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [conversationThread, setConversationThread] = useState<MessageThread | null>(null);
+  const [isConversationOpen, setIsConversationOpen] = useState(false);
+  const [isContactingSeller, setIsContactingSeller] = useState(false);
+  const [newMessageBody, setNewMessageBody] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
 
   // Handle window resize with cleanup
   useEffect(() => {
@@ -48,8 +65,13 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
 
   // Sync plantName and currentPlant when plant prop changes
   useEffect(() => {
-    setPlantName(plant ? plant.name : "");
     setCurrentPlant(plant);
+    setConversationThread(null);
+    setIsConversationOpen(false);
+    setNewMessageBody('');
+    setIsContactingSeller(false);
+    setIsSendingMessage(false);
+    setIsSubmittingReview(false);
   }, [plant]);
 
   // Reset all states when modal closes
@@ -60,8 +82,41 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
     setReviewRating(0);
     setReviewComment("");
     setShowBackAlert(false);
+    setIsConversationOpen(false);
+    setConversationThread(null);
+    setNewMessageBody('');
+    setIsContactingSeller(false);
+    setIsSendingMessage(false);
+    setIsSubmittingReview(false);
     onClose();
   };
+
+  const messageCount = conversationThread?.messages?.length ?? 0;
+
+  useEffect(() => {
+    if (!isConversationOpen) {
+      return;
+    }
+    if (messageListRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+    }
+  }, [isConversationOpen, messageCount]);
+
+  useEffect(() => {
+    if (!isConversationOpen || !conversationThread) {
+      return;
+    }
+
+    const markThreadAsRead = async () => {
+      try {
+        await messagesService.markThreadRead(conversationThread.id);
+      } catch (error) {
+        console.error('Failed to mark conversation as read', error);
+      }
+    };
+
+    markThreadAsRead();
+  }, [isConversationOpen, conversationThread]);
 
   if (!currentPlant) return null;
 
@@ -98,13 +153,243 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
     setShowBackAlert(false);
   };
 
+  const openConversation = async (thread: MessageThread) => {
+    const normalizedThread: MessageThread = {
+      ...thread,
+      messages: thread.messages ?? [],
+    };
+
+    setConversationThread(normalizedThread);
+
+    if (isMobileView) {
+      try {
+        await messagesService.markThreadRead(normalizedThread.id);
+      } catch (error) {
+        console.error('Failed to mark conversation as read', error);
+      }
+
+      navigate(`/messages/${normalizedThread.id}`, {
+        state: { plantId: currentPlant?.id },
+      });
+    } else {
+      setIsConversationOpen(true);
+    }
+  };
+
+  const handleContactSeller = async () => {
+    if (!currentPlant) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      toast.error('Please sign in to contact the seller.');
+      navigate('/login', {
+        state: { from: { pathname: '/messages', plantId: currentPlant.id } },
+      });
+      return;
+    }
+
+    if (isContactingSeller) {
+      return;
+    }
+
+    setIsContactingSeller(true);
+
+    try {
+      const thread = await messagesService.startThread({
+        plantId: currentPlant.id,
+        sellerId: currentPlant.sellerId ?? currentPlant.seller,
+      });
+
+      await openConversation(thread);
+      toast.success('Conversation ready. Start messaging the seller!');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to start the conversation.';
+      toast.error(message);
+    } finally {
+      setIsContactingSeller(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!conversationThread) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      toast.error('Please sign in to send messages.');
+      navigate('/login', { state: { from: { pathname: '/messages' } } });
+      return;
+    }
+
+    const trimmedMessage = newMessageBody.trim();
+
+    if (!trimmedMessage || isSendingMessage) {
+      return;
+    }
+
+    const optimisticMessage: ThreadMessage = {
+      id: `temp-${Date.now()}`,
+      threadId: conversationThread.id,
+      body: trimmedMessage,
+      senderId: 'me',
+      senderType: 'buyer',
+      createdAt: new Date().toISOString(),
+      status: 'pending',
+    };
+
+    setConversationThread(prev => {
+      if (!prev) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        messages: [...(prev.messages ?? []), optimisticMessage],
+      };
+    });
+
+    setNewMessageBody('');
+    setIsSendingMessage(true);
+
+    try {
+      const persistedMessage = await messagesService.sendMessage({
+        threadId: conversationThread.id,
+        body: trimmedMessage,
+      });
+
+      setConversationThread(prev => {
+        if (!prev) {
+          return prev;
+        }
+
+        const messages = prev.messages ?? [];
+        const updatedMessages = messages.map(message =>
+          message.id === optimisticMessage.id ? persistedMessage : message
+        );
+
+        if (!updatedMessages.some(message => message.id === persistedMessage.id)) {
+          updatedMessages[updatedMessages.length - 1] = persistedMessage;
+        }
+
+        return {
+          ...prev,
+          messages: updatedMessages,
+        };
+      });
+    } catch (error) {
+      setConversationThread(prev => {
+        if (!prev) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          messages: (prev.messages ?? []).filter(message => message.id !== optimisticMessage.id),
+        };
+      });
+
+      setNewMessageBody(trimmedMessage);
+
+      const message = error instanceof Error ? error.message : 'Unable to send the message.';
+      toast.error(message);
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleAddReview = () => {
+    if (!currentPlant) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      toast.error('Please sign in to leave a review.');
+      navigate('/login', {
+        state: { from: { pathname: '/', action: 'add-review', plantId: currentPlant.id } },
+      });
+      return;
+    }
+
+    setIsReviewScreenOpen(true);
+  };
+
+  const handleReviewSubmit = async () => {
+    if (!currentPlant) {
+      return;
+    }
+
+    if (reviewRating <= 0) {
+      toast.error('Please provide a rating before submitting.');
+      return;
+    }
+
+    const previousPlantState = currentPlant;
+    const existingReviewCount = currentPlant.sellerReviewCount ?? 0;
+    const optimisticReviewCount = existingReviewCount + 1;
+    const weightedRating = ((currentPlant.sellerRating ?? 0) * existingReviewCount) + reviewRating;
+    const optimisticRating = optimisticReviewCount > 0 ? weightedRating / optimisticReviewCount : reviewRating;
+
+    const optimisticPlant: Plant = {
+      ...currentPlant,
+      sellerRating: Number(optimisticRating.toFixed(2)),
+      sellerReviewCount: optimisticReviewCount,
+    };
+
+    setCurrentPlant(optimisticPlant);
+    onPlantUpdate?.(optimisticPlant);
+    setIsSubmittingReview(true);
+
+    try {
+      const response = await reviewsService.submitReview({
+        plantId: currentPlant.id,
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+
+      let nextRating = typeof response.sellerRating === 'number' ? response.sellerRating : optimisticPlant.sellerRating;
+      let nextCount = typeof response.totalReviews === 'number' ? response.totalReviews : optimisticPlant.sellerReviewCount;
+
+      if (nextRating === undefined || nextCount === undefined) {
+        try {
+          const summary = await reviewsService.getReviewSummary(currentPlant.id);
+          nextRating = summary.sellerRating ?? nextRating;
+          nextCount = summary.totalReviews ?? nextCount;
+        } catch (summaryError) {
+          console.warn('Failed to refresh review summary', summaryError);
+        }
+      }
+
+      const updatedPlant: Plant = {
+        ...optimisticPlant,
+        sellerRating: typeof nextRating === 'number' ? nextRating : optimisticPlant.sellerRating,
+        sellerReviewCount: typeof nextCount === 'number' ? nextCount : optimisticPlant.sellerReviewCount,
+      };
+
+      setCurrentPlant(updatedPlant);
+      onPlantUpdate?.(updatedPlant);
+      toast.success('Review submitted successfully.');
+      setIsReviewScreenOpen(false);
+      setReviewRating(0);
+      setReviewComment('');
+      setShowBackAlert(false);
+    } catch (error) {
+      setCurrentPlant(previousPlantState);
+      onPlantUpdate?.(previousPlantState);
+      const message = error instanceof Error ? error.message : 'Failed to submit review.';
+      toast.error(message);
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   const handleListingSave = async (updatedPlant: Plant, changedFields: Set<keyof Plant>) => {
     // Only send the fields that were actually changed
     const changedData: Partial<Plant> = {};
-    
+
     // Build object with only changed fields
     changedFields.forEach(field => {
-      (changedData as any)[field] = updatedPlant[field];
+      changedData[field] = updatedPlant[field];
     });
     
     // Only make API call if there are changes
@@ -125,7 +410,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
         console.log('Successfully saved changes');
         // Update the local state with the new plant data
         setCurrentPlant(updatedPlant);
-        setPlantName(updatedPlant.name);
+        onPlantUpdate?.(updatedPlant);
       } catch (error) {
         console.error('Error saving changes:', error);
         alert('Failed to save changes. Please try again.');
@@ -138,10 +423,9 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
     setIsEditListingScreenOpen(false);
   };
 
-  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
-
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <>
+      <Dialog open={isOpen} onOpenChange={handleClose}>
 
       {/* Default Plant Detail Listing Screen */}
       {(!isReviewScreenOpen && !isEditListingScreenOpen) && (
@@ -305,16 +589,30 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                     <ShoppingCart className="h-4 w-4 mr-2" />
                     {alreadyInCart ? 'Add another to cart' : 'Add to cart'}
                   </Button>
-                  <Button className="w-full bg-green-600 hover:bg-green-700">
-                    Contact Seller
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={handleContactSeller}
+                    disabled={isContactingSeller}
+                  >
+                    {isContactingSeller ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        Contact Seller
+                      </>
+                    )}
                   </Button>
-                  <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => setIsReviewScreenOpen(true)}>
+                  <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleAddReview}>
                     Add Review
                   </Button>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline">
+                    <Button variant="outline" onClick={handleContactSeller} disabled={isContactingSeller}>
                       <MessageCircle className="h-4 w-4 mr-2" />
-                      Message
+                      {isContactingSeller ? 'Opening...' : 'Message'}
                     </Button>
                     <Button variant="outline">
                       Make Offer
@@ -404,12 +702,30 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                   <StarRating value={reviewRating} onChange={setReviewRating} />
                 </div>
 
-                <div className="flex items-center justify-between border border-black rounded-md">
-                  <textarea id="message" rows={32} onChange={(e) => setReviewComment(e.target.value)} className="block p-2 w-full text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Write your review here"></textarea>
+                <div>
+                  <Textarea
+                    id="message"
+                    rows={8}
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="Share details about your experience with this seller..."
+                    className="min-h-[200px]"
+                  />
                 </div>
                 <div className="flex items-start justify-between">
-                  <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => setIsReviewScreenOpen(true)}>
-                    Submit
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={handleReviewSubmit}
+                    disabled={isSubmittingReview || reviewRating <= 0}
+                  >
+                    {isSubmittingReview ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      'Submit'
+                    )}
                   </Button>
                 </div>
               </div>
@@ -417,6 +733,94 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
           </div>
         </DialogContent>
       )}
-    </Dialog>
+      </Dialog>
+
+      <Drawer
+        open={isConversationOpen}
+        onOpenChange={(open) => {
+          setIsConversationOpen(open);
+          if (!open) {
+            setNewMessageBody('');
+          }
+        }}
+      >
+      <DrawerContent className="sm:max-w-md">
+        <DrawerHeader>
+          <DrawerTitle>
+            Conversation with {currentPlant?.seller ?? 'Seller'}
+          </DrawerTitle>
+          <DrawerDescription>
+            {currentPlant ? `Discussing ${currentPlant.name}` : 'Plant conversation'}
+          </DrawerDescription>
+        </DrawerHeader>
+        <div className="flex flex-col gap-4 px-4 pb-4">
+          <div
+            ref={messageListRef}
+            className="flex max-h-[24rem] flex-col gap-3 overflow-y-auto pr-1"
+          >
+            {conversationThread?.messages && conversationThread.messages.length > 0 ? (
+              conversationThread.messages.map(message => {
+                const isBuyerMessage = message.senderType === 'buyer';
+                const isPending = message.status === 'pending';
+                const timestamp = message.createdAt
+                  ? new Date(message.createdAt).toLocaleString()
+                  : 'Just now';
+
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex ${isBuyerMessage ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm shadow-sm ${isBuyerMessage
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-100 text-gray-900'
+                      }`}
+                    >
+                      <p>{message.body}</p>
+                      <span className="mt-1 block text-xs opacity-75">
+                        {isPending ? 'Sending…' : timestamp}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {isContactingSeller
+                  ? 'Starting conversation...'
+                  : 'No messages yet. Say hello to start the conversation.'}
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Textarea
+              rows={3}
+              value={newMessageBody}
+              onChange={(e) => setNewMessageBody(e.target.value)}
+              placeholder="Type your message..."
+            />
+            <Button
+              className="w-full bg-green-600 hover:bg-green-700"
+              onClick={handleSendMessage}
+              disabled={isSendingMessage || !newMessageBody.trim()}
+            >
+              {isSendingMessage ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send message
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </DrawerContent>
+      </Drawer>
+    </>
   );
 }

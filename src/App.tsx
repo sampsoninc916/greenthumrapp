@@ -5,10 +5,9 @@ import { PlantCard } from './components/PlantCard';
 import { CreateNewPlantModal } from './components/CreateNewPlantModal';
 import { Button } from './components/ui/button';
 import { SlidersHorizontal, Grid3X3, List } from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
 import './index.css';
 import './App.css';
-import { Plant } from './interfaces/Plant';
+import type { Plant } from './interfaces/Plant';
 import { useAuth } from './contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from './config/amplify';
@@ -18,9 +17,6 @@ const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCreateNewPlantModalOpen, setIsCreateNewPlantModalOpen] = useState(false);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-  const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
-  const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
@@ -92,6 +88,12 @@ const App = () => {
       return true;
     });
   }, [searchQuery, filters, plantsData]);
+
+  const handlePlantUpdate = (updatedPlant: Plant) => {
+    setPlantsData(prev =>
+      prev.map(plant => (plant.id === updatedPlant.id ? { ...plant, ...updatedPlant } : plant))
+    );
+  };
 
   const handleAddListing = () => {
     if (!isAuthenticated) {
@@ -170,6 +172,7 @@ const App = () => {
                 <PlantCard
                   key={plant.id}
                   plant={plant}
+                  onPlantUpdate={handlePlantUpdate}
                 />
               ))}
             </div>

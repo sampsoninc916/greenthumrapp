@@ -6,8 +6,10 @@ export interface Plant {
     location: string;
     category: string;
     seller: string;
+    sellerId?: string;
     sellerAvatar: string;
     sellerRating: number;
+    sellerReviewCount?: number;
     condition: string;
     description: string;
     careInstructions: string;
