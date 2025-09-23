@@ -31,6 +31,11 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   const [price, setPrice] = useState(0);
   const [location, setLocation] = useState('');
   const [category, setCategory] = useState('');
+  const [species, setSpecies] = useState('');
+  const [cultivar, setCultivar] = useState('');
+  const [usdaZone, setUsdaZone] = useState('');
+  const [lightPreference, setLightPreference] = useState('');
+  const [soilPreference, setSoilPreference] = useState('');
   const [condition, setCondition] = useState('');
   const [description, setDescription] = useState('');
   const [careInstructions, setCareInstructions] = useState('');
@@ -167,6 +172,39 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
       return;
     }
 
+    const trimmedSpecies = species.trim();
+    const trimmedCultivar = cultivar.trim();
+    const trimmedUsdaZoneInput = usdaZone.trim();
+    const normalizedUsdaZone = trimmedUsdaZoneInput.toUpperCase();
+    const trimmedLightPreference = lightPreference.trim();
+    const trimmedSoilPreference = soilPreference.trim();
+    const zonePattern = /^(?:[1-9]|1[0-3])[A-D]?$/i;
+
+    if (!trimmedSpecies) {
+      setError('Please enter the plant species.');
+      return;
+    }
+
+    if (!normalizedUsdaZone) {
+      setError('Please enter the USDA hardiness zone.');
+      return;
+    }
+
+    if (!zonePattern.test(normalizedUsdaZone)) {
+      setError('Enter a valid USDA hardiness zone (1-13 with optional letter A-D).');
+      return;
+    }
+
+    if (!trimmedLightPreference) {
+      setError('Please describe the preferred light conditions.');
+      return;
+    }
+
+    if (!trimmedSoilPreference) {
+      setError('Please describe the preferred soil conditions.');
+      return;
+    }
+
     if (files.length === 0) {
       setError('Please upload at least one image');
       return;
@@ -239,6 +277,11 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
         price,
         location,
         category,
+        species: trimmedSpecies,
+        cultivar: trimmedCultivar || undefined,
+        usdaZone: normalizedUsdaZone,
+        lightPreference: trimmedLightPreference,
+        soilPreference: trimmedSoilPreference,
         condition,
         description,
         careInstructions,
@@ -283,6 +326,11 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
       setPrice(0);
       setLocation('');
       setCategory('');
+      setSpecies('');
+      setCultivar('');
+      setUsdaZone('');
+      setLightPreference('');
+      setSoilPreference('');
       setCondition('');
       setDescription('');
       setCareInstructions('');
@@ -436,6 +484,46 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
               <input
                 type="text"
                 className="w-full inline-block p-2 border border-gray-300 rounded-md"
+                placeholder="Species (e.g., Monstera deliciosa)"
+                onChange={(e) => setSpecies(e.target.value)}
+              />
+            </div>
+            <div className="flex w-full items-center justify-between rounded-md">
+              <input
+                type="text"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
+                placeholder="Cultivar (optional)"
+                onChange={(e) => setCultivar(e.target.value)}
+              />
+            </div>
+            <div className="flex w-full items-center justify-between rounded-md">
+              <input
+                type="text"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
+                placeholder="USDA Hardiness Zone (e.g., 9B)"
+                onChange={(e) => setUsdaZone(e.target.value)}
+              />
+            </div>
+            <div className="flex w-full items-center justify-between rounded-md">
+              <input
+                type="text"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
+                placeholder="Light Preference (e.g., Bright indirect light)"
+                onChange={(e) => setLightPreference(e.target.value)}
+              />
+            </div>
+            <div className="flex w-full items-center justify-between rounded-md">
+              <input
+                type="text"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
+                placeholder="Soil Preference (e.g., Well-draining mix)"
+                onChange={(e) => setSoilPreference(e.target.value)}
+              />
+            </div>
+            <div className="flex w-full items-center justify-between rounded-md">
+              <input
+                type="text"
+                className="w-full inline-block p-2 border border-gray-300 rounded-md"
                 placeholder="Condition"
                 onChange={(e) => setCondition(e.target.value)}
               />
@@ -448,7 +536,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <div className="flex w-fullitems-center justify-between rounded-md">
+            <div className="flex w-full items-center justify-between rounded-md">
               <input
                 type="text"
                 className="w-full inline-block p-2 border border-gray-300 rounded-md"

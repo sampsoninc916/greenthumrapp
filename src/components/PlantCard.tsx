@@ -43,9 +43,20 @@ export function PlantCard({
     }
   };
 
+  const taxonomyBadges = [
+    plant.species && plant.cultivar
+      ? `${plant.species} '${plant.cultivar}'`
+      : plant.species,
+    !plant.species && plant.cultivar ? `Cultivar ${plant.cultivar}` : null,
+    plant.usdaZone ? `Zone ${String(plant.usdaZone).toUpperCase()}` : null,
+    plant.lightPreference ? `${plant.lightPreference} light` : null,
+    plant.soilPreference ? `${plant.soilPreference} soil` : null,
+  ].filter((badge): badge is string => Boolean(badge));
+  const visibleBadges = taxonomyBadges.slice(0, 3);
+
   return (
     <>
-      <Card 
+      <Card
         className="overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-1 group"
         onClick={handleClick}
       >
@@ -98,6 +109,19 @@ export function PlantCard({
             <p className="text-sm text-muted-foreground">
               by {plant.seller}
             </p>
+            {visibleBadges.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {visibleBadges.map((badge, index) => (
+                  <Badge
+                    key={`${badge}-${index}`}
+                    variant="secondary"
+                    className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                  >
+                    {badge}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

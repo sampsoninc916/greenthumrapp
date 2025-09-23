@@ -22,6 +22,11 @@ export interface Plant {
     images: string[];
     location: string;
     category: string;
+    species?: string;
+    cultivar?: string;
+    usdaZone?: string;
+    lightPreference?: string;
+    soilPreference?: string;
     seller: string;
     sellerId?: string;
     sellerAvatar: string;
