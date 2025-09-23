@@ -144,6 +144,24 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
     .filter((value): value is string => Boolean(value));
   const packagingNotes = (currentPlant.packagingNotes ?? '').trim();
   const normalizedWarranty = currentPlant.livePlantWarranty ?? { isOffered: false };
+  const normalizedSpecies = currentPlant.species ? currentPlant.species.trim() : '';
+  const normalizedCultivar = currentPlant.cultivar ? currentPlant.cultivar.trim() : '';
+  const normalizedUsdaZone = currentPlant.usdaZone
+    ? String(currentPlant.usdaZone).trim().toUpperCase()
+    : '';
+  const normalizedLightPreference = currentPlant.lightPreference
+    ? currentPlant.lightPreference.trim()
+    : '';
+  const normalizedSoilPreference = currentPlant.soilPreference
+    ? currentPlant.soilPreference.trim()
+    : '';
+  const hasTaxonomyDetails = Boolean(
+    normalizedSpecies || normalizedCultivar || normalizedUsdaZone,
+  );
+  const hasCarePreferenceDetails = Boolean(
+    normalizedLightPreference || normalizedSoilPreference,
+  );
+  const hasTaxonomyOrCareDetails = hasTaxonomyDetails || hasCarePreferenceDetails;
   const hasWarrantyDetails =
     normalizedWarranty.isOffered ||
     typeof normalizedWarranty.durationDays === 'number' ||
@@ -604,18 +622,60 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
                     </div>
                   </div>
 
+                  <div className="space-y-3">
+                    <h3 className="text-base font-semibold text-green-700">Taxonomy &amp; Growing Preferences</h3>
+                    {hasTaxonomyOrCareDetails ? (
+                      <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
+                        {normalizedSpecies && (
+                          <div>
+                            <span className="text-muted-foreground">Species:</span>
+                            <p className="font-medium">{normalizedSpecies}</p>
+                          </div>
+                        )}
+                        {normalizedCultivar && (
+                          <div>
+                            <span className="text-muted-foreground">Cultivar:</span>
+                            <p className="font-medium">{normalizedCultivar}</p>
+                          </div>
+                        )}
+                        {normalizedUsdaZone && (
+                          <div>
+                            <span className="text-muted-foreground">USDA hardiness zone:</span>
+                            <p className="font-medium">{normalizedUsdaZone}</p>
+                          </div>
+                        )}
+                        {normalizedLightPreference && (
+                          <div>
+                            <span className="text-muted-foreground">Light preference:</span>
+                            <p className="font-medium">{normalizedLightPreference}</p>
+                          </div>
+                        )}
+                        {normalizedSoilPreference && (
+                          <div>
+                            <span className="text-muted-foreground">Soil preference:</span>
+                            <p className="font-medium">{normalizedSoilPreference}</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Seller has not shared taxonomy or growing preferences yet.
+                      </p>
+                    )}
+                  </div>
+
                   <div>
                     <span className="text-muted-foreground">Description:</span>
                     <p className="mt-1">{currentPlant.description}</p>
                   </div>
 
-                <div>
-                  <span className="text-muted-foreground">Care Instructions:</span>
-                  <p className="mt-1">{currentPlant.careInstructions}</p>
+                  <div>
+                    <span className="text-muted-foreground">Care Instructions:</span>
+                    <p className="mt-1">{currentPlant.careInstructions}</p>
+                  </div>
                 </div>
-              </div>
 
-              <Separator />
+                <Separator />
 
               <div className="space-y-4">
                 <div>

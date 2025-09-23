@@ -233,6 +233,39 @@ export function EditListingScreen({
             }
         }
 
+        const trimmedSpecies = (editedPlant.species ?? '').trim();
+        const trimmedCultivar = (editedPlant.cultivar ?? '').trim();
+        const trimmedUsdaZoneInput = (editedPlant.usdaZone ?? '').trim();
+        const normalizedUsdaZone = trimmedUsdaZoneInput.toUpperCase();
+        const trimmedLightPreference = (editedPlant.lightPreference ?? '').trim();
+        const trimmedSoilPreference = (editedPlant.soilPreference ?? '').trim();
+        const zonePattern = /^(?:[1-9]|1[0-3])[A-D]?$/i;
+
+        if (!trimmedSpecies) {
+            setFormError('Species is required.');
+            return;
+        }
+
+        if (!normalizedUsdaZone) {
+            setFormError('USDA hardiness zone is required.');
+            return;
+        }
+
+        if (!zonePattern.test(normalizedUsdaZone)) {
+            setFormError('Enter a valid USDA hardiness zone (1-13 with optional letter A-D).');
+            return;
+        }
+
+        if (!trimmedLightPreference) {
+            setFormError('Light preference is required.');
+            return;
+        }
+
+        if (!trimmedSoilPreference) {
+            setFormError('Soil preference is required.');
+            return;
+        }
+
         const normalizedWarranty: LivePlantWarranty = warrantyOffered
             ? {
                 isOffered: true,
@@ -245,8 +278,14 @@ export function EditListingScreen({
             };
 
         const packagingNotesValue = (editedPlant.packagingNotes ?? '').trim();
+        const normalizedCultivar = trimmedCultivar || undefined;
         const updatedPlant: Plant = {
             ...editedPlant,
+            species: trimmedSpecies,
+            cultivar: normalizedCultivar,
+            usdaZone: normalizedUsdaZone,
+            lightPreference: trimmedLightPreference,
+            soilPreference: trimmedSoilPreference,
             deliveryMethods: selectedDeliveryMethods,
             availableZipRanges: ranges,
             packagingNotes: packagingNotesValue,
@@ -260,6 +299,36 @@ export function EditListingScreen({
         const originalZipRanges = Array.isArray(plant.availableZipRanges) ? plant.availableZipRanges : [];
         const originalPackagingNotes = plant.packagingNotes ?? '';
         const originalWarranty = plant.livePlantWarranty ?? { isOffered: false };
+
+        if ((plant.species ?? '').trim() !== trimmedSpecies) {
+            updatedChangedFields.add('species');
+        } else {
+            updatedChangedFields.delete('species');
+        }
+
+        if ((plant.cultivar ?? '').trim() !== (normalizedCultivar ?? '')) {
+            updatedChangedFields.add('cultivar');
+        } else {
+            updatedChangedFields.delete('cultivar');
+        }
+
+        if ((plant.usdaZone ?? '').trim().toUpperCase() !== normalizedUsdaZone) {
+            updatedChangedFields.add('usdaZone');
+        } else {
+            updatedChangedFields.delete('usdaZone');
+        }
+
+        if ((plant.lightPreference ?? '').trim() !== trimmedLightPreference) {
+            updatedChangedFields.add('lightPreference');
+        } else {
+            updatedChangedFields.delete('lightPreference');
+        }
+
+        if ((plant.soilPreference ?? '').trim() !== trimmedSoilPreference) {
+            updatedChangedFields.add('soilPreference');
+        } else {
+            updatedChangedFields.delete('soilPreference');
+        }
 
         if (JSON.stringify(originalDeliveryMethods) !== JSON.stringify(selectedDeliveryMethods)) {
             updatedChangedFields.add('deliveryMethods');
@@ -432,6 +501,56 @@ export function EditListingScreen({
                                     value={editedPlant.category}
                                     onChange={e => updatePlantField('category', e.target.value)}
                                     className="w-full p-2 border rounded text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs md:text-sm font-medium text-gray-700">Species</label>
+                                <input
+                                    type="text"
+                                    value={editedPlant.species ?? ''}
+                                    onChange={e => updatePlantField('species', e.target.value)}
+                                    className="w-full p-2 border rounded text-sm"
+                                    placeholder="Monstera deliciosa"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs md:text-sm font-medium text-gray-700">Cultivar</label>
+                                <input
+                                    type="text"
+                                    value={editedPlant.cultivar ?? ''}
+                                    onChange={e => updatePlantField('cultivar', e.target.value)}
+                                    className="w-full p-2 border rounded text-sm"
+                                    placeholder="Thai Constellation"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs md:text-sm font-medium text-gray-700">USDA Hardiness Zone</label>
+                                <input
+                                    type="text"
+                                    value={editedPlant.usdaZone ?? ''}
+                                    onChange={e => updatePlantField('usdaZone', e.target.value)}
+                                    className="w-full p-2 border rounded text-sm"
+                                    placeholder="9B"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs md:text-sm font-medium text-gray-700">Light Preference</label>
+                                <input
+                                    type="text"
+                                    value={editedPlant.lightPreference ?? ''}
+                                    onChange={e => updatePlantField('lightPreference', e.target.value)}
+                                    className="w-full p-2 border rounded text-sm"
+                                    placeholder="Bright indirect light"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs md:text-sm font-medium text-gray-700">Soil Preference</label>
+                                <input
+                                    type="text"
+                                    value={editedPlant.soilPreference ?? ''}
+                                    onChange={e => updatePlantField('soilPreference', e.target.value)}
+                                    className="w-full p-2 border rounded text-sm"
+                                    placeholder="Well-draining mix"
                                 />
                             </div>
                             <div>
