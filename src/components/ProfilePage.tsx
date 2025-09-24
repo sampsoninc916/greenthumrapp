@@ -14,6 +14,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
+import { Switch } from "./ui/switch";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { MobileActionBar } from "./MobileActionBar";
 
@@ -24,6 +25,7 @@ interface Review {
 
 // Helper to parse DynamoDB JSON format
 function parseUserData(data: any) {
+  const rawConsents = data.consents ?? {};
   return {
     userId: data.userId || "",
     fullName: data.fullName || "",
@@ -39,6 +41,13 @@ function parseUserData(data: any) {
       data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 0
         ? [...data.savedListings]
         : [],
+    consents: {
+      termsAcceptedAt: typeof rawConsents.termsAcceptedAt === "string" ? rawConsents.termsAcceptedAt : null,
+      privacyAcceptedAt: typeof rawConsents.privacyAcceptedAt === "string" ? rawConsents.privacyAcceptedAt : null,
+      marketingEmailOptIn: Boolean(rawConsents.marketingEmailOptIn),
+      marketingSmsOptIn: Boolean(rawConsents.marketingSmsOptIn),
+      marketingGlobalUnsubscribed: Boolean(rawConsents.marketingGlobalUnsubscribed),
+    },
   };
 }
 
@@ -66,6 +75,13 @@ const initialUser: User = {
   plantListings: [],
   savedListings: [],
   subscription: "Free Plan",
+  consents: {
+    termsAcceptedAt: null,
+    privacyAcceptedAt: null,
+    marketingEmailOptIn: false,
+    marketingSmsOptIn: false,
+    marketingGlobalUnsubscribed: false,
+  },
   // reviews: [],
 };
 
@@ -96,6 +112,41 @@ export function ProfilePage() {
   const isSeller = role === "seller";
   const navigate = useNavigate();
   const isMobileView = useIsMobile();
+  const [consentPreferences, setConsentPreferences] = useState({
+    marketingEmailOptIn: initialUser.consents.marketingEmailOptIn,
+    marketingSmsOptIn: initialUser.consents.marketingSmsOptIn,
+  });
+  const [isSavingConsents, setIsSavingConsents] = useState(false);
+  const [consentFeedback, setConsentFeedback] = useState<
+    | { type: "success" | "error"; message: string }
+    | null
+  >(null);
+  const marketingGlobalUnsubscribed = user.consents?.marketingGlobalUnsubscribed ?? false;
+
+  const formatConsentDate = (value: string | null) => {
+    if (!value) {
+      return "Pending acceptance";
+    }
+    try {
+      return new Date(value).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+    } catch {
+      return value;
+    }
+  };
+
+  const handleConsentPreferenceChange = (
+    key: "marketingEmailOptIn" | "marketingSmsOptIn"
+  ) =>
+    (checked: boolean) => {
+      setConsentPreferences((prev) => ({
+        ...prev,
+        [key]: checked,
+      }));
+      setConsentFeedback(null);
+    };
 
   const settingsTabs = useMemo(
     () =>
@@ -138,6 +189,13 @@ export function ProfilePage() {
     }
   }, [activeTab, settingsTabs]);
 
+  useEffect(() => {
+    setConsentPreferences({
+      marketingEmailOptIn: user.consents.marketingEmailOptIn,
+      marketingSmsOptIn: user.consents.marketingSmsOptIn,
+    });
+  }, [user.consents.marketingEmailOptIn, user.consents.marketingSmsOptIn]);
+
   // Fetch user data from API on mount
   useEffect(() => {
     async function fetchUserAndPlants() {
@@ -166,6 +224,10 @@ export function ProfilePage() {
         setEditDescription(parsed.description || "");
         setEditAvatar(parsed.profilePic);
         setEditFullName(parsed.fullName);
+        setConsentPreferences({
+          marketingEmailOptIn: parsed.consents.marketingEmailOptIn,
+          marketingSmsOptIn: parsed.consents.marketingSmsOptIn,
+        });
       } catch (error) {
         console.error(error);
       }
@@ -206,6 +268,75 @@ export function ProfilePage() {
     setEditAvatar(user.profilePic);
     setEditFullName(user.fullName);
     setIsEditing(false);
+  };
+
+  const saveConsentPreferences = async () => {
+    setIsSavingConsents(true);
+    setConsentFeedback(null);
+    try {
+      const response = await apiClient.put(
+        API_ENDPOINTS.USERS_UPDATE,
+        {
+          consents: {
+            ...user.consents,
+            marketingEmailOptIn: consentPreferences.marketingEmailOptIn,
+            marketingSmsOptIn: consentPreferences.marketingSmsOptIn,
+          },
+        },
+        true,
+      );
+
+      if (!response.ok) {
+        throw new Error("We couldn't update your communication preferences. Please try again.");
+      }
+
+      let updatedConsents = {
+        ...user.consents,
+        marketingEmailOptIn: consentPreferences.marketingEmailOptIn,
+        marketingSmsOptIn: consentPreferences.marketingSmsOptIn,
+      };
+
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+      if (contentType.includes("application/json")) {
+        try {
+          const responseBody = await response.json();
+          if (responseBody && typeof responseBody === "object") {
+            const parsed = parseUserData(responseBody);
+            updatedConsents = parsed.consents;
+            setConsentPreferences({
+              marketingEmailOptIn: parsed.consents.marketingEmailOptIn,
+              marketingSmsOptIn: parsed.consents.marketingSmsOptIn,
+            });
+          }
+        } catch (parseError) {
+          console.warn("Unable to parse consent update response", parseError);
+        }
+      }
+
+      setUser((prev) => ({
+        ...prev,
+        consents: {
+          ...prev.consents,
+          ...updatedConsents,
+        },
+      }));
+
+      setConsentFeedback({
+        type: "success",
+        message: "Your communication preferences have been updated.",
+      });
+    } catch (error) {
+      console.error(error);
+      setConsentFeedback({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to update your preferences right now. Please try again later.",
+      });
+    } finally {
+      setIsSavingConsents(false);
+    }
   };
 
   // Save changes to backend
@@ -332,6 +463,88 @@ export function ProfilePage() {
               </Link>
               {" "}to manage requests or update your preferences.
             </p>
+            <div className="mt-6 space-y-5">
+              <div className="rounded-xl border border-green-100 bg-green-50/60 p-4">
+                <h4 className="text-sm font-semibold text-green-800">Required agreements</h4>
+                <div className="mt-3 space-y-2 text-sm text-gray-700">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-medium">Terms of Service</p>
+                      <Link to="/terms" className="text-xs text-green-700 underline">
+                        View terms
+                      </Link>
+                    </div>
+                    <span className="text-xs uppercase tracking-wide text-gray-500">
+                      {formatConsentDate(user.consents.termsAcceptedAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-medium">Privacy Policy</p>
+                      <Link to="/privacy" className="text-xs text-green-700 underline">
+                        View policy
+                      </Link>
+                    </div>
+                    <span className="text-xs uppercase tracking-wide text-gray-500">
+                      {formatConsentDate(user.consents.privacyAcceptedAt)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-800">Email updates</h4>
+                    <p className="text-xs text-gray-500">
+                      Get seasonal tips, product launches, and curated plant guides.
+                    </p>
+                  </div>
+                  <Switch
+                    id="profile-marketing-email"
+                    checked={consentPreferences.marketingEmailOptIn}
+                    disabled={marketingGlobalUnsubscribed || isSavingConsents}
+                    onCheckedChange={handleConsentPreferenceChange("marketingEmailOptIn")}
+                  />
+                </div>
+                <div className="mt-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-800">Text messages</h4>
+                    <p className="text-xs text-gray-500">
+                      Receive limited-time offers and alerts about plants on your wishlist.
+                    </p>
+                  </div>
+                  <Switch
+                    id="profile-marketing-sms"
+                    checked={consentPreferences.marketingSmsOptIn}
+                    disabled={marketingGlobalUnsubscribed || isSavingConsents}
+                    onCheckedChange={handleConsentPreferenceChange("marketingSmsOptIn")}
+                  />
+                </div>
+                {marketingGlobalUnsubscribed && (
+                  <p className="mt-3 text-xs text-amber-600">
+                    You used a global unsubscribe link, so marketing messages are disabled. Contact
+                    support if you would like to re-subscribe.
+                  </p>
+                )}
+                <Button
+                  className="mt-4 bg-green-600 text-white hover:bg-green-700"
+                  onClick={saveConsentPreferences}
+                  disabled={isSavingConsents || marketingGlobalUnsubscribed}
+                >
+                  {isSavingConsents ? "Saving preferences..." : "Save communication preferences"}
+                </Button>
+                {consentFeedback && (
+                  <p
+                    className={`mt-3 text-sm ${
+                      consentFeedback.type === "success" ? "text-green-600" : "text-red-500"
+                    }`}
+                  >
+                    {consentFeedback.message}
+                  </p>
+                )}
+              </div>
+            </div>
           </Card>
         );
       case "help":
