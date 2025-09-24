@@ -810,7 +810,7 @@ export function PlantDetailModal({
 
 
   const renderDefaultBody = () => (
-    <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start lg:gap-10">
+    <div className="flex flex-col md:gap-10 gap-6 pt-4">
       <section className="flex flex-col gap-6">{renderImageGallery()}</section>
       <section className="flex flex-col gap-6">
         {renderDetailSections({ showBackButton: !isPagePresentation })}
