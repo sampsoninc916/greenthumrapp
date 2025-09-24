@@ -27,6 +27,7 @@ import type { Plant } from '../interfaces/Plant';
 import { useCart } from '../contexts/CartContext';
 import { API_ENDPOINTS } from '../config/amplify';
 import { apiClient } from '../services/auth';
+import { isPlantResponseDto, type PlantResponseDto } from '../interfaces/dtos';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Textarea } from './ui/textarea';
@@ -645,39 +646,19 @@ export function PlantDetailModal({
     console.log('Sending changed fields:', changedData);
 
     try {
-      const response = await apiClient.put(
+      const { data } = await apiClient.put<PlantResponseDto | { plant: PlantResponseDto }>(
         `${API_ENDPOINTS.PLANTS_UPDATE}?plantId=${updatedPlant.id}`,
         changedData,
-        true,
+        { requiresAuth: true },
       );
 
-      if (!response.ok) {
-        let message = 'Failed to save changes.';
-        try {
-          const errorBody = await response.json();
-          if (errorBody && typeof errorBody?.message === 'string') {
-            message = errorBody.message;
-          }
-        } catch (parseError) {
-          console.warn('Unable to parse error response', parseError);
-        }
-        throw new Error(message);
+      let rawPlant: unknown = data ?? null;
+      if (rawPlant && typeof rawPlant === 'object' && 'plant' in rawPlant) {
+        rawPlant = (rawPlant as { plant: unknown }).plant;
       }
-
-      let savedPlantPayload: unknown;
-      try {
-        savedPlantPayload = await response.json();
-      } catch (parseError) {
-        console.warn('Unable to parse plant update response; falling back to request payload.', parseError);
-      }
-
-      const rawPlant =
-        savedPlantPayload && typeof savedPlantPayload === 'object' && 'plant' in savedPlantPayload
-          ? (savedPlantPayload as { plant: unknown }).plant
-          : savedPlantPayload;
 
       const normalizedPlant =
-        rawPlant && typeof rawPlant === 'object'
+        rawPlant && isPlantResponseDto(rawPlant)
           ? normalizePlantRecord(rawPlant)
           : normalizePlantRecord(updatedPlant);
 

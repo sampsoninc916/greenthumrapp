@@ -1,10 +1,19 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { API_ENDPOINTS, SECURITY_CONFIG } from '../config/amplify';
+import { createDeserializationError, httpClient, logApiError } from './httpClient';
 
 type UserRole = 'buyer' | 'seller' | 'admin';
 
+type ParseMode = 'json' | 'text' | 'none';
+
+export interface ApiResult<T> {
+  response: Response;
+  data: T | null;
+}
+
 interface RequestConfig extends RequestInit {
   requiresAuth?: boolean;
+  parseAs?: ParseMode;
 }
 
 class AuthService {
@@ -228,6 +237,51 @@ class AuthService {
     }
   }
 
+  private getRetryCount(method: string | undefined): number {
+    const normalizedMethod = method?.toUpperCase() ?? 'GET';
+    return normalizedMethod === 'GET' ? 1 : 0;
+  }
+
+  private describeOperation(method: string | undefined, url: string): string {
+    const normalizedMethod = method?.toUpperCase() ?? 'GET';
+    return `${normalizedMethod} ${url}`;
+  }
+
+  private async parseResponseData<T>(response: Response, parseAs: ParseMode, endpoint: string): Promise<T | null> {
+    if (parseAs === 'none') {
+      return null;
+    }
+
+    if (parseAs === 'text') {
+      try {
+        return (await response.clone().text()) as unknown as T;
+      } catch (error) {
+        const apiError = createDeserializationError(endpoint, error);
+        logApiError(apiError);
+        throw apiError;
+      }
+    }
+
+    if (response.status === 204) {
+      return null;
+    }
+
+    try {
+      const clone = response.clone();
+      const rawBody = await clone.text();
+
+      if (!rawBody) {
+        return null;
+      }
+
+      return JSON.parse(rawBody) as T;
+    } catch (error) {
+      const apiError = createDeserializationError(endpoint, error);
+      logApiError(apiError);
+      throw apiError;
+    }
+  }
+
   private handleForbiddenResponse(requestUrl: string): never {
     console.warn(`Received unexpected 403 response for ${requestUrl}. Redirecting to login.`);
     this.roleCache = null;
@@ -381,8 +435,8 @@ class AuthService {
   /**
    * Make an authenticated API request
    */
-  async authenticatedFetch(url: string, config: RequestConfig = {}): Promise<Response> {
-    const { requiresAuth = true, ...fetchConfig } = config;
+  async authenticatedFetch<T = unknown>(url: string, config: RequestConfig = {}): Promise<ApiResult<T>> {
+    const { requiresAuth = true, parseAs = 'json', ...fetchConfig } = config;
     let role: UserRole | null = this.roleCache;
     let userId: string | null = this.userIdCache;
 
@@ -435,7 +489,14 @@ class AuthService {
       }
     }
 
-    let response = await fetch(requestUrl, fetchConfig);
+    const allowedStatuses = requiresAuth ? [401, 403] : [];
+    const retries = this.getRetryCount(fetchConfig.method as string | undefined);
+    let response = await httpClient.request(requestUrl, {
+      ...fetchConfig,
+      retries,
+      allowedStatuses,
+      operationName: this.describeOperation(fetchConfig.method as string | undefined, requestUrl),
+    });
 
     if (response.status === 401 && requiresAuth) {
       const refreshedInfo = await this.getTokenAndRole(true);
@@ -457,7 +518,11 @@ class AuthService {
         }
         fetchConfig.headers = retryHeaders;
         requestUrl = this.sanitizeUserScopedUrl(url, userId ?? null);
-        response = await fetch(requestUrl, fetchConfig);
+        response = await httpClient.request(requestUrl, {
+          ...fetchConfig,
+          allowedStatuses,
+          operationName: this.describeOperation(fetchConfig.method as string | undefined, requestUrl),
+        });
       } else {
         this.handleUnauthorizedResponse(requestUrl);
       }
@@ -475,7 +540,9 @@ class AuthService {
       response = await this.enforceUserProfileResponsePolicy(requestUrl, response);
     }
 
-    return response;
+    const data = await this.parseResponseData<T>(response, parseAs, requestUrl);
+
+    return { response, data };
   }
 
   /**
@@ -541,55 +608,98 @@ const appendQueryParams = (rawUrl: string, params?: QueryParams): string => {
   }
 };
 
-interface GetOptions {
-  requiresAuth?: boolean;
+interface GetOptions extends Omit<RequestConfig, 'method' | 'body'> {
   params?: QueryParams;
 }
+
+type MutationOptions = Omit<RequestConfig, 'method'>;
+
+const normalizeGetOptions = (options?: boolean | GetOptions): GetOptions => {
+  if (typeof options === 'boolean') {
+    return { requiresAuth: options };
+  }
+  return options ?? {};
+};
+
+const normalizeMutationOptions = (options?: boolean | MutationOptions): MutationOptions => {
+  if (typeof options === 'boolean') {
+    return { requiresAuth: options };
+  }
+  return options ?? {};
+};
 
 // Helper functions for common API calls
 export const apiClient = {
   /**
    * GET request with optional authentication
    */
-  get: async (url: string, options?: boolean | GetOptions) => {
-    const normalizedOptions: GetOptions = typeof options === 'boolean' ? { requiresAuth: options } : options ?? {};
+  get: async <T = unknown>(url: string, options?: boolean | GetOptions): Promise<ApiResult<T>> => {
+    const normalizedOptions = normalizeGetOptions(options);
     const finalUrl = appendQueryParams(url, normalizedOptions.params);
 
-    return authService.authenticatedFetch(finalUrl, {
+    return authService.authenticatedFetch<T>(finalUrl, {
+      ...normalizedOptions,
       method: 'GET',
       requiresAuth: normalizedOptions.requiresAuth ?? false,
+      parseAs: normalizedOptions.parseAs ?? 'json',
     });
   },
 
   /**
    * POST request with optional authentication
    */
-  post: async (url: string, data: any, requiresAuth = true) => {
-    return authService.authenticatedFetch(url, {
+  post: async <T = unknown>(
+    url: string,
+    data: unknown,
+    options?: boolean | MutationOptions,
+  ): Promise<ApiResult<T>> => {
+    const normalizedOptions = normalizeMutationOptions(options);
+
+    const body = normalizedOptions.body ?? JSON.stringify(data);
+
+    return authService.authenticatedFetch<T>(url, {
+      ...normalizedOptions,
       method: 'POST',
-      body: JSON.stringify(data),
-      requiresAuth,
+      body,
+      requiresAuth: normalizedOptions.requiresAuth ?? true,
+      parseAs: normalizedOptions.parseAs ?? 'json',
     });
   },
 
   /**
    * PUT request with optional authentication
    */
-  put: async (url: string, data: any, requiresAuth = true) => {
-    return authService.authenticatedFetch(url, {
+  put: async <T = unknown>(
+    url: string,
+    data: unknown,
+    options?: boolean | MutationOptions,
+  ): Promise<ApiResult<T>> => {
+    const normalizedOptions = normalizeMutationOptions(options);
+    const body = normalizedOptions.body ?? JSON.stringify(data);
+
+    return authService.authenticatedFetch<T>(url, {
+      ...normalizedOptions,
       method: 'PUT',
-      body: JSON.stringify(data),
-      requiresAuth,
+      body,
+      requiresAuth: normalizedOptions.requiresAuth ?? true,
+      parseAs: normalizedOptions.parseAs ?? 'json',
     });
   },
 
   /**
    * DELETE request with optional authentication
    */
-  delete: async (url: string, requiresAuth = true) => {
-    return authService.authenticatedFetch(url, {
+  delete: async <T = unknown>(
+    url: string,
+    options?: boolean | MutationOptions,
+  ): Promise<ApiResult<T>> => {
+    const normalizedOptions = normalizeMutationOptions(options);
+
+    return authService.authenticatedFetch<T>(url, {
+      ...normalizedOptions,
       method: 'DELETE',
-      requiresAuth,
+      requiresAuth: normalizedOptions.requiresAuth ?? true,
+      parseAs: normalizedOptions.parseAs ?? 'none',
     });
   },
 };

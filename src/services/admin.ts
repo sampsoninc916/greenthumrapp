@@ -3,51 +3,6 @@ import { API_ENDPOINTS } from '../config/amplify';
 import { apiClient } from './auth';
 import type { LivePlantWarranty, PlantCompliance } from '../interfaces/Plant';
 
-interface ApiErrorPayload {
-  message?: string;
-  [key: string]: unknown;
-}
-
-const safeJson = async <T>(response: Response): Promise<T | null> => {
-  try {
-    const text = await response.clone().text();
-    if (!text) {
-      return null;
-    }
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  }
-};
-
-const extractErrorMessage = async (response: Response, fallback: string): Promise<string> => {
-  const data = await safeJson<ApiErrorPayload>(response);
-  if (data?.message && typeof data.message === 'string') {
-    return data.message;
-  }
-  return fallback;
-};
-
-const assertSuccess = async (response: Response, fallback: string) => {
-  if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, fallback));
-  }
-};
-
-const parseJsonResponse = async <T>(response: Response, fallback: string): Promise<T | undefined> => {
-  await assertSuccess(response, fallback);
-
-  if (response.status === 204) {
-    return undefined;
-  }
-
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return undefined;
-  }
-};
-
 const ensureEndpoint = (endpoint: string | undefined, key: keyof typeof API_ENDPOINTS) => {
   if (!endpoint) {
     throw new Error(`Missing API endpoint configuration for ${key}`);
@@ -142,8 +97,7 @@ export interface AdminAuditEvent {
 
 const logAuditEvent = async (event: AdminAuditEvent): Promise<void> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.ADMIN_AUDIT, 'ADMIN_AUDIT');
-  const response = await apiClient.post(endpoint, event, true);
-  await assertSuccess(response, 'Unable to record moderation audit trail.');
+  await apiClient.post<null>(endpoint, event, { requiresAuth: true, parseAs: 'none' });
 };
 
 const fetchUsers = async (filters: AdminUserFilters = {}): Promise<AdminUser[]> => {
@@ -153,16 +107,18 @@ const fetchUsers = async (filters: AdminUserFilters = {}): Promise<AdminUser[]> 
     role: filters.role,
     q: filters.query,
   });
-  const response = await apiClient.get(`${endpoint}${query}`, true);
-  const payload = await parseJsonResponse<AdminUser[]>(response, 'Unable to load user directory.');
-  return payload ?? [];
+  const { data } = await apiClient.get<AdminUser[]>(`${endpoint}${query}`, { requiresAuth: true });
+  return data ?? [];
 };
 
 const updateUserStatus = async (userId: string, status: UserStatus, reason?: string): Promise<AdminUser> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.ADMIN_USERS, 'ADMIN_USERS');
-  const response = await apiClient.put(`${endpoint}/${encodeURIComponent(userId)}/status`, { status, reason }, true);
-  const payload = await parseJsonResponse<AdminUser>(response, 'Unable to update user status.');
-  if (!payload) {
+  const { data } = await apiClient.put<AdminUser>(
+    `${endpoint}/${encodeURIComponent(userId)}/status`,
+    { status, reason },
+    { requiresAuth: true },
+  );
+  if (!data) {
     throw new Error('No data returned after updating user status.');
   }
 
@@ -174,7 +130,7 @@ const updateUserStatus = async (userId: string, status: UserStatus, reason?: str
     message: reason,
   });
 
-  return payload;
+  return data;
 };
 
 const fetchListings = async (filters: AdminListingFilters = {}): Promise<AdminListing[]> => {
@@ -184,20 +140,18 @@ const fetchListings = async (filters: AdminListingFilters = {}): Promise<AdminLi
     flagged: filters.flagged === undefined ? undefined : String(filters.flagged),
     q: filters.query,
   });
-  const response = await apiClient.get(`${endpoint}${query}`, true);
-  const payload = await parseJsonResponse<AdminListing[]>(response, 'Unable to load listings.');
-  return payload ?? [];
+  const { data } = await apiClient.get<AdminListing[]>(`${endpoint}${query}`, { requiresAuth: true });
+  return data ?? [];
 };
 
 const approveListing = async (listingId: string, notes?: string): Promise<AdminListing> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.ADMIN_LISTINGS, 'ADMIN_LISTINGS');
-  const response = await apiClient.post(
+  const { data } = await apiClient.post<AdminListing>(
     `${endpoint}/${encodeURIComponent(listingId)}/approve`,
     { notes },
-    true,
+    { requiresAuth: true },
   );
-  const payload = await parseJsonResponse<AdminListing>(response, 'Unable to approve listing.');
-  if (!payload) {
+  if (!data) {
     throw new Error('No data returned after approving listing.');
   }
 
@@ -209,18 +163,17 @@ const approveListing = async (listingId: string, notes?: string): Promise<AdminL
     message: notes,
   });
 
-  return payload;
+  return data;
 };
 
 const takeDownListing = async (listingId: string, reason: string): Promise<AdminListing> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.ADMIN_LISTINGS, 'ADMIN_LISTINGS');
-  const response = await apiClient.post(
+  const { data } = await apiClient.post<AdminListing>(
     `${endpoint}/${encodeURIComponent(listingId)}/takedown`,
     { reason },
-    true,
+    { requiresAuth: true },
   );
-  const payload = await parseJsonResponse<AdminListing>(response, 'Unable to take down listing.');
-  if (!payload) {
+  if (!data) {
     throw new Error('No data returned after taking down listing.');
   }
 
@@ -232,7 +185,7 @@ const takeDownListing = async (listingId: string, reason: string): Promise<Admin
     message: reason,
   });
 
-  return payload;
+  return data;
 };
 
 const fetchDisputes = async (filters: AdminDisputeFilters = {}): Promise<AdminDispute[]> => {
@@ -242,20 +195,18 @@ const fetchDisputes = async (filters: AdminDisputeFilters = {}): Promise<AdminDi
     severity: filters.severity,
     q: filters.query,
   });
-  const response = await apiClient.get(`${endpoint}${query}`, true);
-  const payload = await parseJsonResponse<AdminDispute[]>(response, 'Unable to load disputes.');
-  return payload ?? [];
+  const { data } = await apiClient.get<AdminDispute[]>(`${endpoint}${query}`, { requiresAuth: true });
+  return data ?? [];
 };
 
 const resolveDispute = async (disputeId: string, resolutionNotes: string): Promise<AdminDispute> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.ADMIN_DISPUTES, 'ADMIN_DISPUTES');
-  const response = await apiClient.post(
+  const { data } = await apiClient.post<AdminDispute>(
     `${endpoint}/${encodeURIComponent(disputeId)}/resolve`,
     { resolutionNotes },
-    true,
+    { requiresAuth: true },
   );
-  const payload = await parseJsonResponse<AdminDispute>(response, 'Unable to resolve dispute.');
-  if (!payload) {
+  if (!data) {
     throw new Error('No data returned after resolving dispute.');
   }
 
@@ -267,18 +218,17 @@ const resolveDispute = async (disputeId: string, resolutionNotes: string): Promi
     message: resolutionNotes,
   });
 
-  return payload;
+  return data;
 };
 
 const escalateDispute = async (disputeId: string, escalationReason: string): Promise<AdminDispute> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.ADMIN_DISPUTES, 'ADMIN_DISPUTES');
-  const response = await apiClient.post(
+  const { data } = await apiClient.post<AdminDispute>(
     `${endpoint}/${encodeURIComponent(disputeId)}/escalate`,
     { escalationReason },
-    true,
+    { requiresAuth: true },
   );
-  const payload = await parseJsonResponse<AdminDispute>(response, 'Unable to escalate dispute.');
-  if (!payload) {
+  if (!data) {
     throw new Error('No data returned after escalating dispute.');
   }
 
@@ -290,7 +240,7 @@ const escalateDispute = async (disputeId: string, escalationReason: string): Pro
     message: escalationReason,
   });
 
-  return payload;
+  return data;
 };
 
 export const adminService = {

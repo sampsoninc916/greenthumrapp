@@ -19,36 +19,48 @@ import { MobileActionBar } from "./MobileActionBar";
 import { Badge } from "./ui/badge";
 import { buildComplianceContext, hasCompliance } from "../utils/compliance";
 import { authService } from "../services/auth";
+import { normalizePlantRecord } from "../utils/plants";
+import { toast } from "sonner";
+import {
+  isPlantResponseDto,
+  isUserProfileResponseDto,
+  toBoolean,
+  type PlantResponseDto,
+  type UserProfileResponseDto,
+} from "../interfaces/dtos";
 
-interface Review {
-  rating: number;
-  review: string;
-}
+const toIdArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter((entry): entry is string => entry.length > 0);
+};
 
 // Helper to parse DynamoDB JSON format
-function parseUserData(data: any) {
+function parseUserData(data: UserProfileResponseDto) {
   const rawConsents = data.consents ?? {};
   return {
-    userId: data.userId || "",
-    fullName: data.fullName || "",
-    joinedDate: data.joinedDate || "",
-    profilePic: data.profilePic || "empty",
-    description: data.description || "",
-    subscription: data.subscription || "Free Plan",
-    plantListingIds:
-      data.plantListings && Array.isArray(data.plantListings) && data.plantListings.length > 0
-        ? [...data.plantListings]
-        : [],
-    savedListingIds:
-      data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 0
-        ? [...data.savedListings]
-        : [],
+    userId: data.userId,
+    fullName: typeof data.fullName === "string" ? data.fullName : "",
+    joinedDate: typeof data.joinedDate === "string" ? data.joinedDate : "",
+    profilePic:
+      typeof data.profilePic === "string" && data.profilePic.trim().length > 0
+        ? data.profilePic
+        : "empty",
+    description: typeof data.description === "string" ? data.description : "",
+    subscription: typeof data.subscription === "string" ? data.subscription : "Free Plan",
+    plantListingIds: toIdArray(data.plantListings),
+    savedListingIds: toIdArray(data.savedListings),
     consents: {
-      termsAcceptedAt: typeof rawConsents.termsAcceptedAt === "string" ? rawConsents.termsAcceptedAt : null,
-      privacyAcceptedAt: typeof rawConsents.privacyAcceptedAt === "string" ? rawConsents.privacyAcceptedAt : null,
-      marketingEmailOptIn: Boolean(rawConsents.marketingEmailOptIn),
-      marketingSmsOptIn: Boolean(rawConsents.marketingSmsOptIn),
-      marketingGlobalUnsubscribed: Boolean(rawConsents.marketingGlobalUnsubscribed),
+      termsAcceptedAt:
+        typeof rawConsents.termsAcceptedAt === "string" ? rawConsents.termsAcceptedAt : null,
+      privacyAcceptedAt:
+        typeof rawConsents.privacyAcceptedAt === "string" ? rawConsents.privacyAcceptedAt : null,
+      marketingEmailOptIn: toBoolean(rawConsents.marketingEmailOptIn, false),
+      marketingSmsOptIn: toBoolean(rawConsents.marketingSmsOptIn, false),
+      marketingGlobalUnsubscribed: toBoolean(rawConsents.marketingGlobalUnsubscribed, false),
     },
   };
 }
@@ -267,30 +279,38 @@ export function ProfilePage() {
 
     const fetchUserAndPlants = async () => {
       try {
-        const response = await apiClient.get(API_ENDPOINTS.USERS_READ, {
-          requiresAuth: true,
-          params: { userId: currentUserId },
+        const { data: userPayload } = await apiClient.get<UserProfileResponseDto>(
+          API_ENDPOINTS.USERS_READ,
+          {
+            requiresAuth: true,
+            params: { userId: currentUserId },
+          },
+        );
+
+        if (!userPayload || !isUserProfileResponseDto(userPayload)) {
+          throw new Error("Invalid profile data received from the server.");
+        }
+
+        const parsed = parseUserData(userPayload);
+
+        const plantResult = await apiClient.get<PlantResponseDto[]>(API_ENDPOINTS.PLANTS_READ, {
+          requiresAuth: false,
         });
 
-        if (response.status === 401) {
-          if (!isCancelled) {
-            await redirectToLogin();
-          }
-          return;
+        const plantPayload = plantResult.data ?? [];
+        const validPlantDtos = plantPayload.filter((entry): entry is PlantResponseDto =>
+          isPlantResponseDto(entry),
+        );
+
+        if (validPlantDtos.length !== plantPayload.length) {
+          console.warn('Filtered invalid plant listings for profile view', {
+            total: plantPayload.length,
+            valid: validPlantDtos.length,
+          });
+          toast.error('Some listings could not be loaded. Please refresh to try again.');
         }
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch user data");
-        }
-
-        const data = await response.json();
-        const parsed = parseUserData(data);
-
-        const plantsResponse = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false);
-        if (!plantsResponse.ok) {
-          throw new Error("Failed to fetch plants data");
-        }
-        const allPlants: Plant[] = await plantsResponse.json();
+        const allPlants: Plant[] = validPlantDtos.map((dto) => normalizePlantRecord(dto));
 
         const userPlants = allPlants.filter((plant) => parsed.plantListingIds.includes(plant.id));
         const savedPlants = allPlants.filter((plant) => parsed.savedListingIds.includes(plant.id));
@@ -314,13 +334,15 @@ export function ProfilePage() {
           marketingSmsOptIn: parsed.consents.marketingSmsOptIn,
         });
       } catch (error) {
+        if (isCancelled) {
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
         if (/sign in/i.test(message) || /auth/i.test(message)) {
-          if (!isCancelled) {
-            await redirectToLogin();
-          }
+          await redirectToLogin();
         } else {
           console.error(error);
+          toast.error('We were unable to load your profile. Please try again.');
         }
       }
     };
@@ -371,7 +393,7 @@ export function ProfilePage() {
     setIsSavingConsents(true);
     setConsentFeedback(null);
     try {
-      const response = await apiClient.put(
+      const result = await apiClient.put<UserProfileResponseDto>(
         API_ENDPOINTS.USERS_UPDATE,
         {
           consents: {
@@ -380,12 +402,8 @@ export function ProfilePage() {
             marketingSmsOptIn: consentPreferences.marketingSmsOptIn,
           },
         },
-        true,
+        { requiresAuth: true },
       );
-
-      if (!response.ok) {
-        throw new Error("We couldn't update your communication preferences. Please try again.");
-      }
 
       let updatedConsents = {
         ...user.consents,
@@ -393,20 +411,16 @@ export function ProfilePage() {
         marketingSmsOptIn: consentPreferences.marketingSmsOptIn,
       };
 
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      if (contentType.includes("application/json")) {
-        try {
-          const responseBody = await response.json();
-          if (responseBody && typeof responseBody === "object") {
-            const parsed = parseUserData(responseBody);
-            updatedConsents = parsed.consents;
-            setConsentPreferences({
-              marketingEmailOptIn: parsed.consents.marketingEmailOptIn,
-              marketingSmsOptIn: parsed.consents.marketingSmsOptIn,
-            });
-          }
-        } catch (parseError) {
-          console.warn("Unable to parse consent update response", parseError);
+      if (result.data) {
+        if (isUserProfileResponseDto(result.data)) {
+          const parsed = parseUserData(result.data);
+          updatedConsents = parsed.consents;
+          setConsentPreferences({
+            marketingEmailOptIn: parsed.consents.marketingEmailOptIn,
+            marketingSmsOptIn: parsed.consents.marketingSmsOptIn,
+          });
+        } else {
+          console.warn('Received unexpected consent response payload', result.data);
         }
       }
 
@@ -422,14 +436,17 @@ export function ProfilePage() {
         type: "success",
         message: "Your communication preferences have been updated.",
       });
+      toast.success("Your communication preferences have been updated.");
     } catch (error) {
       console.error(error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to update your preferences right now. Please try again later.";
+      toast.error(message);
       setConsentFeedback({
         type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to update your preferences right now. Please try again later.",
+        message,
       });
     } finally {
       setIsSavingConsents(false);
@@ -439,14 +456,11 @@ export function ProfilePage() {
   // Save changes to backend
   const saveChangesToBackend = async () => {
     try {
-      const response = await apiClient.put(
+      await apiClient.put<null>(
         API_ENDPOINTS.USERS_UPDATE,
         { fullName: editFullName, profilePic: editAvatar, description: editDescription },
-        true, // Requires authentication
+        { requiresAuth: true, parseAs: "none" },
       );
-      if (!response.ok) {
-        throw new Error("Failed to save changes");
-      }
       console.log("Changes saved successfully");
       // Update local state if needed
       setUser({
@@ -456,8 +470,10 @@ export function ProfilePage() {
         description: editDescription,
       });
       setIsEditing(false);
+      toast.success("Profile updated successfully.");
     } catch (error) {
       console.error("Error saving changes:", error);
+      toast.error("We couldn't save your changes. Please try again.");
     }
   };
 
