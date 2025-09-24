@@ -1,5 +1,5 @@
 import { useState, useEffect, ChangeEvent, useMemo, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { PlantCard } from "./PlantCard";
@@ -321,8 +321,17 @@ export function ProfilePage() {
         return (
           <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-green-800">Privacy Settings</h3>
-            <p className="mt-2 text-sm text-gray-600">Manage your privacy preferences and data sharing options.</p>
-            <Button className="mt-4 bg-green-600 text-white hover:bg-green-700">Edit Privacy Settings</Button>
+            <p className="mt-2 text-sm text-gray-600">
+              Review how Thumr processes your personal data, the safeguards we apply, and the rights
+              you have under privacy laws like the GDPR and CCPA.
+            </p>
+            <p className="mt-3 text-sm text-gray-600">
+              Visit our
+              <Link className="text-green-700 underline" to="/privacy">
+                {" "}Privacy Policy
+              </Link>
+              {" "}to manage requests or update your preferences.
+            </p>
           </Card>
         );
       case "help":
@@ -361,11 +370,16 @@ export function ProfilePage() {
           <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-green-800">Terms of Service</h3>
             <p className="mt-2 text-sm text-gray-600">
-              By using Thumr, you agree to our terms of service and privacy policy.
+              Understand your obligations when buying or selling plants, including plant-shipping
+              liability and compliance with marketplace rules.
             </p>
-            <a href="#" className="mt-2 inline-block text-sm text-green-600 underline">
-              View Full Terms
-            </a>
+            <p className="mt-3 text-sm text-gray-600">
+              Review the full
+              <Link className="text-green-700 underline" to="/terms">
+                {" "}Terms of Service
+              </Link>
+              {" "}before listing or purchasing.
+            </p>
           </Card>
         );
       case "delete":
