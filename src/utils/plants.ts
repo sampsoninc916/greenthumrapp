@@ -76,7 +76,7 @@ export const normalizePlantRecord = (plant: PlantResponseDto): Plant => {
 
   const compliance =
     plant.compliance && typeof plant.compliance === 'object'
-      ? (plant.compliance as PlantCompliance)
+      ? (plant.compliance as unknown as PlantCompliance)
       : undefined;
 
   return {

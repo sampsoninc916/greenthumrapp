@@ -7,6 +7,9 @@ type UserRole = 'buyer' | 'seller' | 'admin';
 type ParseMode = 'json' | 'text' | 'none';
 
 export interface ApiResult<T> {
+  ok: any;
+  status: any;
+  json(): unknown;
   response: Response;
   data: T | null;
 }
@@ -542,7 +545,13 @@ class AuthService {
 
     const data = await this.parseResponseData<T>(response, parseAs, requestUrl);
 
-    return { response, data };
+    return {
+      ok: response.ok,
+      status: response.status,
+      json: () => response.clone().json(),
+      response,
+      data,
+    };
   }
 
   /**

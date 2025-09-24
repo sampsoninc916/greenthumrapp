@@ -660,7 +660,7 @@ export function PlantDetailModal({
       const normalizedPlant =
         rawPlant && isPlantResponseDto(rawPlant)
           ? normalizePlantRecord(rawPlant)
-          : normalizePlantRecord(updatedPlant);
+          : updatedPlant;
 
       setCurrentPlant(normalizedPlant);
       onPlantUpdate?.(normalizedPlant);

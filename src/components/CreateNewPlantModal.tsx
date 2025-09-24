@@ -25,6 +25,7 @@ import {
 } from '../constants/fulfillmentRules';
 import { parseRestrictedStatesInput } from '../utils/compliance';
 import { normalizePlantRecord } from '../utils/plants';
+import { isPlantResponseDto } from '../interfaces/dtos';
 
 type FieldName =
   | 'images'
@@ -324,7 +325,10 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
 
     try {
       const payload = await response.json();
-      const rawResults: unknown = Array.isArray(payload?.results) ? payload.results : payload;
+      const rawResults: unknown =
+        payload && typeof payload === 'object' && 'results' in payload && Array.isArray((payload as any).results)
+          ? (payload as any).results
+          : payload;
 
       if (!Array.isArray(rawResults)) {
         console.warn('Unexpected upload scan response structure. Treating files as allowed.');
@@ -892,8 +896,8 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
         let message = `Failed to create listing: ${res.status}`;
         try {
           const errorBody = await res.json();
-          if (errorBody && typeof errorBody.message === 'string') {
-            message = errorBody.message;
+          if (errorBody && typeof (errorBody as { message?: string }).message === 'string') {
+            message = (errorBody as { message: string }).message;
           }
         } catch (error) {
           console.warn('Unable to parse error response', error);
@@ -907,7 +911,10 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
           ? (responseBody as { plant: unknown }).plant
           : responseBody;
       let createdPlant: Plant | null = null;
-      if (rawPlant && typeof rawPlant === 'object') {
+      // Use type guard to ensure rawPlant is PlantResponseDto before normalizing
+      // Import isPlantResponseDto if not already imported
+      // import { isPlantResponseDto } from '../interfaces/Plant';
+      if (rawPlant && typeof rawPlant === 'object' && isPlantResponseDto(rawPlant)) {
         const normalized = normalizePlantRecord(rawPlant);
         if (normalized && typeof normalized.id === 'string') {
           createdPlant = normalized;
