@@ -22,6 +22,7 @@ import {
   parseZipRanges,
   requiresZipRanges,
 } from '../constants/fulfillmentRules';
+import { parseRestrictedStatesInput } from '../utils/compliance';
 
 type FieldName =
   | 'images'
@@ -36,7 +37,12 @@ type FieldName =
   | 'condition'
   | 'deliveryMethods'
   | 'zipRange'
-  | 'warrantyDuration';
+  | 'warrantyDuration'
+  | 'restrictedStates'
+  | 'restrictedStatesAcknowledgment'
+  | 'phytosanitaryDetails'
+  | 'phytosanitaryAcknowledgment'
+  | 'arrivalGuaranteeAcknowledgment';
 
 type FieldErrorState = Partial<Record<FieldName, string>>;
 
@@ -161,9 +167,15 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   const [deliveryMethods, setDeliveryMethods] = useState<DeliveryMethod[]>([]);
   const [zipRangeInput, setZipRangeInput] = useState('');
   const [packagingNotes, setPackagingNotes] = useState('');
+  const [restrictedStatesInput, setRestrictedStatesInput] = useState('');
+  const [restrictedStatesAcknowledged, setRestrictedStatesAcknowledged] = useState(false);
+  const [phytosanitaryRequired, setPhytosanitaryRequired] = useState(false);
+  const [phytosanitaryDetails, setPhytosanitaryDetails] = useState('');
+  const [phytosanitaryAcknowledged, setPhytosanitaryAcknowledged] = useState(false);
   const [warrantyOffered, setWarrantyOffered] = useState(false);
   const [warrantyDuration, setWarrantyDuration] = useState('');
   const [warrantyNotes, setWarrantyNotes] = useState('');
+  const [arrivalGuaranteeAcknowledged, setArrivalGuaranteeAcknowledged] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrorState>({});
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -242,9 +254,15 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     setDeliveryMethods([]);
     setZipRangeInput('');
     setPackagingNotes('');
+    setRestrictedStatesInput('');
+    setRestrictedStatesAcknowledged(false);
+    setPhytosanitaryRequired(false);
+    setPhytosanitaryDetails('');
+    setPhytosanitaryAcknowledged(false);
     setWarrantyOffered(false);
     setWarrantyDuration('');
     setWarrantyNotes('');
+    setArrivalGuaranteeAcknowledged(false);
     setFieldErrors({});
     setSubmissionError(null);
     setIsSubmitting(false);
@@ -585,6 +603,64 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
           }
           break;
         }
+        case 'restrictedStates': {
+          if (!restrictedStatesInput.trim()) {
+            clearFieldError('restrictedStates');
+            return true;
+          }
+          const { invalidEntries } = parseRestrictedStatesInput(restrictedStatesInput);
+          if (invalidEntries.length > 0) {
+            setFieldError(
+              'restrictedStates',
+              `Use two-letter state codes: ${invalidEntries.join(', ')}`,
+            );
+            return false;
+          }
+          break;
+        }
+        case 'restrictedStatesAcknowledgment': {
+          const { states } = parseRestrictedStatesInput(restrictedStatesInput);
+          if (states.length === 0) {
+            clearFieldError('restrictedStatesAcknowledgment');
+            return true;
+          }
+          if (!restrictedStatesAcknowledged) {
+            setFieldError(
+              'restrictedStatesAcknowledgment',
+              'Confirm you will block shipments to the restricted states listed.',
+            );
+            return false;
+          }
+          break;
+        }
+        case 'phytosanitaryDetails': {
+          if (!phytosanitaryRequired) {
+            clearFieldError('phytosanitaryDetails');
+            return true;
+          }
+          if (!phytosanitaryDetails.trim()) {
+            setFieldError(
+              'phytosanitaryDetails',
+              'Share details about when certificates are included.',
+            );
+            return false;
+          }
+          break;
+        }
+        case 'phytosanitaryAcknowledgment': {
+          if (!phytosanitaryRequired) {
+            clearFieldError('phytosanitaryAcknowledgment');
+            return true;
+          }
+          if (!phytosanitaryAcknowledged) {
+            setFieldError(
+              'phytosanitaryAcknowledgment',
+              'Acknowledge that you will provide required certification.',
+            );
+            return false;
+          }
+          break;
+        }
         case 'warrantyDuration': {
           if (!warrantyOffered) {
             clearFieldError('warrantyDuration');
@@ -597,6 +673,20 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
           const parsedDuration = Number(warrantyDuration);
           if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
             setFieldError('warrantyDuration', 'Warranty duration must be a positive number of days.');
+            return false;
+          }
+          break;
+        }
+        case 'arrivalGuaranteeAcknowledgment': {
+          if (!warrantyOffered) {
+            clearFieldError('arrivalGuaranteeAcknowledgment');
+            return true;
+          }
+          if (!arrivalGuaranteeAcknowledged) {
+            setFieldError(
+              'arrivalGuaranteeAcknowledgment',
+              'Confirm you will honor the live-arrival guarantee you are offering.',
+            );
             return false;
           }
           break;
@@ -643,7 +733,16 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
       'soilPreference',
       'condition',
     ],
-    2: ['deliveryMethods', 'zipRange', 'warrantyDuration'],
+    2: [
+      'deliveryMethods',
+      'zipRange',
+      'restrictedStates',
+      'restrictedStatesAcknowledgment',
+      'phytosanitaryDetails',
+      'phytosanitaryAcknowledgment',
+      'warrantyDuration',
+      'arrivalGuaranteeAcknowledgment',
+    ],
   };
 
   const validateStep = (stepIndex: number) => {
@@ -677,6 +776,8 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     if (!checked) {
       setWarrantyDuration('');
       clearFieldError('warrantyDuration');
+      setArrivalGuaranteeAcknowledged(false);
+      clearFieldError('arrivalGuaranteeAcknowledgment');
     }
   };
 
@@ -700,11 +801,24 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     const normalizedPackagingNotes = packagingNotes.trim();
     const normalizedPrice = Number(price);
     const { ranges } = parseZipRanges(zipRangeInput);
+    const { states: restrictedStates } = parseRestrictedStatesInput(restrictedStatesInput);
 
     let warrantyDurationValue: number | undefined;
     if (warrantyOffered) {
       warrantyDurationValue = Number(warrantyDuration);
     }
+
+    const complianceData = {
+      restrictedStates,
+      restrictedStatesAcknowledged:
+        restrictedStates.length > 0 ? restrictedStatesAcknowledged : false,
+      requiresPhytosanitaryCertificate: phytosanitaryRequired,
+      phytosanitaryDetails: phytosanitaryRequired
+        ? phytosanitaryDetails.trim() || undefined
+        : undefined,
+      phytosanitaryAcknowledged: phytosanitaryRequired ? phytosanitaryAcknowledged : false,
+      arrivalGuaranteeAcknowledged: warrantyOffered ? arrivalGuaranteeAcknowledged : false,
+    };
 
     const normalizedWarranty: LivePlantWarranty = warrantyOffered
       ? {
@@ -751,6 +865,7 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
         availableZipRanges: ranges,
         packagingNotes: normalizedPackagingNotes || undefined,
         livePlantWarranty: normalizedWarranty,
+        compliance: complianceData,
       };
 
       const bodyJSON = {
@@ -1215,6 +1330,107 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
               <p className="text-xs text-muted-foreground">Let buyers know how you protect plants in transit.</p>
             </section>
 
+            <section className="space-y-3 rounded-md border border-gray-200/80 bg-white/70 p-4">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900">Restricted destinations</h4>
+                <p className="text-xs text-muted-foreground">
+                  List the U.S. states where you cannot ship this plant due to agricultural rules.
+                </p>
+              </div>
+              <Textarea
+                id="restrictedStates"
+                value={restrictedStatesInput}
+                onChange={(event) => {
+                  setRestrictedStatesInput(event.target.value);
+                  clearFieldError('restrictedStates');
+                }}
+                rows={3}
+                placeholder="CA, AZ, HI"
+                aria-invalid={fieldErrors.restrictedStates ? true : undefined}
+              />
+              <p className="text-xs text-muted-foreground">
+                Use two-letter state codes separated by commas or line breaks.
+              </p>
+              {fieldErrors.restrictedStates && (
+                <p className="text-xs text-destructive">{fieldErrors.restrictedStates}</p>
+              )}
+              <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={restrictedStatesAcknowledged}
+                  onCheckedChange={(checked) => {
+                    setRestrictedStatesAcknowledged(checked === true);
+                    clearFieldError('restrictedStatesAcknowledgment');
+                  }}
+                />
+                <span>
+                  I will block orders shipping to the states listed above and cancel any that slip through.
+                </span>
+              </label>
+              {fieldErrors.restrictedStatesAcknowledgment && (
+                <p className="text-xs text-destructive">{fieldErrors.restrictedStatesAcknowledgment}</p>
+              )}
+            </section>
+
+            <section className="space-y-3 rounded-md border border-gray-200/80 bg-white/70 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900">Phytosanitary certification</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Toggle on if certain destinations require a certificate for this plant.
+                  </p>
+                </div>
+                <Switch
+                  id="phytosanitaryRequired"
+                  checked={phytosanitaryRequired}
+                  onCheckedChange={(checked) => {
+                    const nextValue = checked === true;
+                    setPhytosanitaryRequired(nextValue);
+                    if (!nextValue) {
+                      setPhytosanitaryDetails('');
+                      setPhytosanitaryAcknowledged(false);
+                      clearFieldError('phytosanitaryDetails');
+                      clearFieldError('phytosanitaryAcknowledgment');
+                    }
+                  }}
+                  aria-label="Toggle phytosanitary certification requirement"
+                />
+              </div>
+              {phytosanitaryRequired && (
+                <>
+                  <Textarea
+                    id="phytosanitaryDetails"
+                    value={phytosanitaryDetails}
+                    onChange={(event) => {
+                      setPhytosanitaryDetails(event.target.value);
+                      clearFieldError('phytosanitaryDetails');
+                    }}
+                    rows={3}
+                    placeholder="Include certification for CA, AZ. Ships with state-issued inspection docs."
+                    aria-invalid={fieldErrors.phytosanitaryDetails ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Share when you include certificates, inspection numbers, or agency contacts.
+                  </p>
+                  {fieldErrors.phytosanitaryDetails && (
+                    <p className="text-xs text-destructive">{fieldErrors.phytosanitaryDetails}</p>
+                  )}
+                  <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <Checkbox
+                      checked={phytosanitaryAcknowledged}
+                      onCheckedChange={(checked) => {
+                        setPhytosanitaryAcknowledged(checked === true);
+                        clearFieldError('phytosanitaryAcknowledgment');
+                      }}
+                    />
+                    <span>I will include required phytosanitary documentation with every applicable shipment.</span>
+                  </label>
+                  {fieldErrors.phytosanitaryAcknowledgment && (
+                    <p className="text-xs text-destructive">{fieldErrors.phytosanitaryAcknowledgment}</p>
+                  )}
+                </>
+              )}
+            </section>
+
             <section className="space-y-4 rounded-md border border-gray-200/80 bg-white/70 p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -1267,6 +1483,23 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                 />
                 <p className="text-xs text-muted-foreground">Clarify what you cover and how buyers can reach you.</p>
               </div>
+              {warrantyOffered && (
+                <>
+                  <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <Checkbox
+                      checked={arrivalGuaranteeAcknowledged}
+                      onCheckedChange={(checked) => {
+                        setArrivalGuaranteeAcknowledged(checked === true);
+                        clearFieldError('arrivalGuaranteeAcknowledgment');
+                      }}
+                    />
+                    <span>I will honor this arrival guarantee or provide refunds/replacements per marketplace policy.</span>
+                  </label>
+                  {fieldErrors.arrivalGuaranteeAcknowledgment && (
+                    <p className="text-xs text-destructive">{fieldErrors.arrivalGuaranteeAcknowledgment}</p>
+                  )}
+                </>
+              )}
             </section>
 
             {prohibitedStateMessage && (

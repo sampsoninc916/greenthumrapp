@@ -1,6 +1,7 @@
 import type { UserRole } from '../contexts/AuthContext';
 import { API_ENDPOINTS } from '../config/amplify';
 import { apiClient } from './auth';
+import type { LivePlantWarranty, PlantCompliance } from '../interfaces/Plant';
 
 interface ApiErrorPayload {
   message?: string;
@@ -93,6 +94,8 @@ export interface AdminListing {
   submittedAt?: string;
   flaggedReason?: string;
   flaggedCount?: number;
+  compliance?: PlantCompliance;
+  livePlantWarranty?: LivePlantWarranty;
 }
 
 export interface AdminDispute {

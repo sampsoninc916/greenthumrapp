@@ -1,5 +1,19 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft, ShoppingCart, Send, Loader2, CheckCircle2, X } from 'lucide-react';
+import {
+  Heart,
+  MapPin,
+  User,
+  MessageCircle,
+  Star,
+  Shield,
+  ArrowLeft,
+  ShoppingCart,
+  Send,
+  Loader2,
+  CheckCircle2,
+  X,
+  AlertTriangle,
+} from 'lucide-react';
 import { Dialog, DialogContent } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -29,6 +43,12 @@ import {
   formatZipRange,
   getProhibitedStateMessage,
 } from '../constants/fulfillmentRules';
+import {
+  buildComplianceContext,
+  formatRestrictedStatesSummary,
+  getComplianceHighlights,
+  hasCompliance,
+} from '../utils/compliance';
 
 interface PlantDetailModalProps {
   plant: Plant | null;
@@ -213,11 +233,21 @@ export function PlantDetailModal({
     normalizedWarranty.isOffered ||
     typeof normalizedWarranty.durationDays === 'number' ||
     Boolean(normalizedWarranty.notes);
+  const complianceContext = buildComplianceContext(
+    currentPlant.compliance,
+    currentPlant.livePlantWarranty,
+  );
+  const complianceHighlights = getComplianceHighlights(
+    currentPlant.compliance,
+    currentPlant.livePlantWarranty,
+  );
+  const hasComplianceDetails = hasCompliance(complianceContext);
   const hasFulfillmentDetails =
     deliveryMethods.length > 0 ||
     formattedZipRanges.length > 0 ||
     Boolean(packagingNotes) ||
-    hasWarrantyDetails;
+    hasWarrantyDetails ||
+    hasComplianceDetails;
   const locationStateCode = extractStateCode(currentPlant.location);
   const prohibitedStateMessage = getProhibitedStateMessage(locationStateCode, deliveryMethods);
 
@@ -923,6 +953,78 @@ export function PlantDetailModal({
             <div>
               <span className="text-muted-foreground">Packaging notes:</span>
               <p className="mt-1 whitespace-pre-line">{packagingNotes}</p>
+            </div>
+          )}
+          {hasComplianceDetails && (
+            <div className="space-y-2">
+              <span className="text-muted-foreground">Compliance notices:</span>
+              {complianceHighlights.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {complianceHighlights.map((highlight) => (
+                    <Badge
+                      key={highlight}
+                      variant="outline"
+                      className="border-amber-200 bg-amber-50 text-amber-900"
+                    >
+                      {highlight}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {complianceContext.restrictedStates.length > 0 && (
+                <Alert variant="destructive" className="border-rose-200 bg-rose-50 text-rose-900">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Restricted destinations</AlertTitle>
+                  <AlertDescription className="space-y-1 text-rose-900/90">
+                    <p>
+                      Seller cannot ship to: {formatRestrictedStatesSummary(complianceContext.restrictedStates)}.
+                    </p>
+                    <p className="text-xs">
+                      {complianceContext.restrictedStatesAcknowledged
+                        ? 'Seller confirmed these orders will be cancelled automatically.'
+                        : 'Contact the seller before ordering to these states.'}
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {complianceContext.requiresPhytosanitaryCertificate && (
+                <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                  <Shield className="h-4 w-4" />
+                  <AlertTitle>Phytosanitary certificate</AlertTitle>
+                  <AlertDescription className="space-y-1 text-amber-900/90">
+                    <p>
+                      {complianceContext.phytosanitaryAcknowledged
+                        ? 'Seller will include the required certification for regulated destinations.'
+                        : 'A certificate may be required—confirm details with the seller before purchase.'}
+                    </p>
+                    {complianceContext.phytosanitaryDetails && (
+                      <p className="text-xs">{complianceContext.phytosanitaryDetails}</p>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {complianceContext.arrivalGuaranteeOffered && (
+                <Alert
+                  className={
+                    'border ' +
+                    (complianceContext.arrivalGuaranteeAcknowledged
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                      : 'border-amber-200 bg-amber-50 text-amber-900')
+                  }
+                >
+                  {complianceContext.arrivalGuaranteeAcknowledged ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4" />
+                  )}
+                  <AlertTitle>Arrival guarantee</AlertTitle>
+                  <AlertDescription className="text-sm">
+                    {complianceContext.arrivalGuaranteeAcknowledged
+                      ? 'Seller confirmed they will honor the advertised live-arrival guarantee.'
+                      : 'Seller advertises a live-arrival guarantee—request written confirmation before checkout.'}
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
           {hasWarrantyDetails ? (

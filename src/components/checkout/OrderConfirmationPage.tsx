@@ -4,9 +4,11 @@ import { CheckCircle2, Leaf, Truck } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
 import type { OrderConfirmationState } from '../../interfaces/Checkout';
 import { formatCurrency } from '../../utils/currency';
+import { buildComplianceContext, getComplianceHighlights } from '../../utils/compliance';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Separator } from '../ui/separator';
+import { Badge } from '../ui/badge';
 
 export const OrderConfirmationPage = () => {
   const location = useLocation();
@@ -135,15 +137,48 @@ export const OrderConfirmationPage = () => {
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="space-y-3">
-                {items.map((item) => (
-                  <div key={item.plant.id} className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-green-900">{item.plant.name}</p>
-                      <p className="text-xs text-muted-foreground">Qty {item.quantity} · {formatCurrency(item.plant.price)}</p>
+                {items.map((item) => {
+                  const complianceContext = buildComplianceContext(
+                    item.plant.compliance,
+                    item.plant.livePlantWarranty,
+                  );
+                  const complianceHighlights = getComplianceHighlights(
+                    item.plant.compliance,
+                    item.plant.livePlantWarranty,
+                  );
+
+                  return (
+                    <div key={item.plant.id} className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="font-medium text-green-900">{item.plant.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Qty {item.quantity} · {formatCurrency(item.plant.price)}
+                        </p>
+                        {complianceHighlights.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            {complianceHighlights.map((highlight) => (
+                              <Badge
+                                key={`${item.plant.id}-${highlight}`}
+                                variant="outline"
+                                className="border-emerald-200 bg-emerald-50 text-emerald-800"
+                              >
+                                {highlight}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {complianceContext.phytosanitaryDetails && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {complianceContext.phytosanitaryDetails}
+                          </p>
+                        )}
+                      </div>
+                      <span className="font-medium text-green-700">
+                        {formatCurrency(item.plant.price * item.quantity)}
+                      </span>
                     </div>
-                    <span className="font-medium text-green-700">{formatCurrency(item.plant.price * item.quantity)}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <Separator />
               <div className="space-y-1">
