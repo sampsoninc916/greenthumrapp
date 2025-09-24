@@ -3,17 +3,19 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { PlantCard } from './components/PlantCard';
 import { CreateNewPlantModal } from './components/CreateNewPlantModal';
+import { PlantDetailModal } from './components/PlantDetailModal';
 import { Button } from './components/ui/button';
 import { SlidersHorizontal, Grid3X3, List } from 'lucide-react';
 import './index.css';
 import './App.css';
 import type { Plant, DeliveryMethod, LivePlantWarranty } from './interfaces/Plant';
 import { useAuth } from './contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { API_ENDPOINTS } from './config/amplify';
 import { apiClient } from './services/auth';
 import type { ZipRange } from './interfaces/Plant';
 import { DELIVERY_METHOD_OPTIONS } from './constants/fulfillmentRules';
+import { useIsMobile } from './hooks/useIsMobile';
 
 const VALID_DELIVERY_METHODS = new Set<DeliveryMethod>(
   DELIVERY_METHOD_OPTIONS.map((option) => option.value),
@@ -108,6 +110,8 @@ const App = () => {
   const [plantsData, setPlantsData] = useState<Plant[]>([]);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { plantId } = useParams<{ plantId?: string }>();
+  const isMobile = useIsMobile();
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -132,6 +136,16 @@ const App = () => {
 
     fetchData();
   }, []);
+
+  const selectedPlant = useMemo(() => {
+    if (!plantId) {
+      return null;
+    }
+    return plantsData.find((plant) => plant.id === plantId) ?? null;
+  }, [plantsData, plantId]);
+
+  const isDetailRoute = Boolean(plantId);
+  const shouldShowListing = !isDetailRoute || !isMobile;
 
   const filteredPlants = useMemo(() => {
     return plantsData.filter(plant => {
@@ -177,6 +191,14 @@ const App = () => {
     );
   };
 
+  const handleViewDetail = (plant: Plant) => {
+    navigate(`/plants/${plant.id}`);
+  };
+
+  const handleCloseDetail = () => {
+    navigate('/');
+  };
+
   const handleAddListing = () => {
     if (!isAuthenticated) {
       // Store intended action and redirect to login
@@ -188,109 +210,133 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
-      <Header
-        onSearch={setSearchQuery}
-        onAddListing={handleAddListing}
-        onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-      />
-      <div className="flex">
-        <Sidebar
-          isOpen={isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-          filters={filters}
-          onFiltersChange={setFilters}
-        />
+      {shouldShowListing && (
+        <>
+          <Header
+            onSearch={setSearchQuery}
+            onAddListing={handleAddListing}
+            onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+          />
+          <div className="flex">
+            <Sidebar
+              isOpen={isSidebarOpen}
+              onClose={() => setIsSidebarOpen(false)}
+              filters={filters}
+              onFiltersChange={setFilters}
+            />
 
-        <main className="flex-1 p-6">
-          {/* Controls */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="md:hidden"
-              >
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Filters
-              </Button>
+            <main className="flex-1 p-6">
+              {/* Controls */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                    className="md:hidden"
+                  >
+                    <SlidersHorizontal className="h-4 w-4 mr-2" />
+                    Filters
+                  </Button>
 
-              <div className="text-sm text-muted-foreground">
-                {filteredPlants.length} plants found
-                {/* {0} plants found */}
-                {searchQuery && (
-                  <span> for "{searchQuery}"</span>
-                )}
+                  <div className="text-sm text-muted-foreground">
+                    {filteredPlants.length} plants found
+                    {searchQuery && (
+                      <span> for "{searchQuery}"</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('grid')}
+                  >
+                    <Grid3X3 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('grid')}
-              >
-                <Grid3X3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('list')}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-            </div>
+              {/* Plants Grid */}
+              {filteredPlants.length > 0 ? (
+                <div
+                  className={
+                    viewMode === 'grid'
+                      ? 'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                      : 'space-y-4'
+                  }
+                >
+                  {filteredPlants.map((plant: Plant) => (
+                    <PlantCard
+                      key={plant.id}
+                      plant={plant}
+                      onPlantUpdate={handlePlantUpdate}
+                      onViewDetail={handleViewDetail}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center">
+                  {loading ? (
+                    <div className="text-lg text-gray-500">Loading plants...</div>
+                  ) : error ? (
+                    <div className="text-lg text-red-500">Error loading plants. Please try again later.</div>
+                  ) : (
+                    <>
+                      <div className="mb-4 text-muted-foreground">
+                        No plants found matching your criteria
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setFilters({
+                            categories: [],
+                            priceRange: [0, 500],
+                            conditions: [],
+                            location: 'anywhere'
+                          });
+                        }}
+                      >
+                        Clear all filters
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </main>
           </div>
 
-          {/* Plants Grid */}
-          {filteredPlants.length > 0 ? (
-            <div className={`
-              ${viewMode === 'grid'
-                ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-                : 'space-y-4'
-              }
-            `}>
-              {filteredPlants.map((plant: Plant) => (
-                <PlantCard
-                  key={plant.id}
-                  plant={plant}
-                  onPlantUpdate={handlePlantUpdate}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              {loading ? (
-                <div className="text-lg text-gray-500">Loading plants...</div>
-              ) : error ? (
-                <div className="text-lg text-red-500">Error loading plants. Please try again later.</div>
-              ) : (
-                <>
-                  <div className="text-muted-foreground mb-4">
-                    No plants found matching your criteria
-                  </div>
-                  <Button variant="outline" onClick={() => {
-                    setSearchQuery('');
-                    setFilters({
-                      categories: [],
-                      priceRange: [0, 500],
-                      conditions: [],
-                      location: 'anywhere'
-                    });
-                  }}>
-                    Clear all filters
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-        </main>
-      </div>
+          <CreateNewPlantModal
+            isOpen={isCreateNewPlantModalOpen}
+            onClose={() => setIsCreateNewPlantModalOpen(false)}
+          />
+        </>
+      )}
 
-      <CreateNewPlantModal
-        isOpen={isCreateNewPlantModalOpen}
-        onClose={() => setIsCreateNewPlantModalOpen(false)}
-      />
+      {!shouldShowListing && !selectedPlant && (
+        <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+          Loading listing...
+        </div>
+      )}
+
+      {selectedPlant && (
+        <PlantDetailModal
+          plant={selectedPlant}
+          isOpen={isDetailRoute}
+          onClose={handleCloseDetail}
+          onPlantUpdate={handlePlantUpdate}
+          presentation={isMobile ? 'page' : 'modal'}
+        />
+      )}
     </div>
   );
 }

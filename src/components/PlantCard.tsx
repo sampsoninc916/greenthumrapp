@@ -4,7 +4,6 @@ import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { ImageWithFallback } from './figma/ImageWithFallback';
-import { PlantDetailModal } from './PlantDetailModal';
 import type { Plant } from '../interfaces/Plant';
 
 interface PlantCardProps {
@@ -12,16 +11,17 @@ interface PlantCardProps {
   isLiked?: boolean;
   onLike?: (id: string) => void;
   onPlantUpdate?: (plant: Plant) => void;
+  onViewDetail?: (plant: Plant) => void;
 }
 
 export function PlantCard({
   plant,
   isLiked = false,
   onLike,
-  onPlantUpdate
+  onPlantUpdate,
+  onViewDetail,
 }: PlantCardProps) {
   const [liked, setLiked] = useState(isLiked);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -30,7 +30,7 @@ export function PlantCard({
   };
 
   const handleClick = () => {
-    setIsModalOpen(true);
+    onViewDetail?.(plant);
   };
 
   const getConditionColor = (condition: string) => {
@@ -125,12 +125,6 @@ export function PlantCard({
           </div>
         </CardContent>
       </Card>
-      <PlantDetailModal
-        plant={plant}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onPlantUpdate={onPlantUpdate}
-      />
     </>
   );
 }
