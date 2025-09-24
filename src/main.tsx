@@ -19,6 +19,8 @@ import { AdminRoute } from './components/AdminRoute';
 import { AdminUsersPage } from './components/admin/AdminUsersPage';
 import { AdminListingsPage } from './components/admin/AdminListingsPage';
 import { AdminDisputesPage } from './components/admin/AdminDisputesPage';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
+import { TermsOfService } from './pages/TermsOfService';
 
 // test to deploy to cloudflare workers pages.
 
@@ -34,6 +36,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/plants/:plantId" element={<App />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<TermsOfService />} />
               <Route path="/cart" element={<CartPage />} />
               <Route
                 path="/checkout"
