@@ -56,8 +56,43 @@ const ALLOWED_IMAGE_TYPES = [
   'image/heic',
   'image/heif',
 ] as const;
-const ALLOWED_IMAGE_TYPE_SET = new Set<string>(ALLOWED_IMAGE_TYPES);
+const ALLOWED_IMAGE_TYPE_SET = new Set<string>(ALLOWED_IMAGE_TYPES.map((type) => type.toLowerCase()));
 const IMAGE_TYPES_LABEL = 'JPG, PNG, GIF, WebP, or HEIC';
+const MAX_IMAGE_COUNT = 10;
+const MIN_IMAGE_WIDTH = 600;
+const MIN_IMAGE_HEIGHT = 600;
+const MIN_IMAGE_DIMENSION_LABEL = `${MIN_IMAGE_WIDTH}x${MIN_IMAGE_HEIGHT}px`;
+
+interface UploadScanResult {
+  fileName: string;
+  allowed: boolean;
+  reason?: string;
+}
+
+const loadImageDimensions = (file: File): Promise<{ width: number; height: number }> => {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      resolve({ width: image.naturalWidth, height: image.naturalHeight });
+      URL.revokeObjectURL(objectUrl);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Unable to read image dimensions.'));
+    };
+    image.src = objectUrl;
+  });
+};
+
+const logImageValidationFailure = (file: File, reason: string) => {
+  console.warn('[ImageUploadValidation] Rejected file', {
+    fileName: file.name,
+    mimeType: file.type,
+    sizeBytes: file.size,
+    reason,
+  });
+};
 
 const STEPS = [
   {
@@ -241,42 +276,173 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     clearFieldError('deliveryMethods');
   };
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files ?? []);
+  const performUploadSecurityScan = useCallback(async (files: File[]): Promise<UploadScanResult[]> => {
+    if (files.length === 0) {
+      return [];
+    }
+
+    if (!API_ENDPOINTS.UPLOAD_SCAN) {
+      console.info('Upload scan endpoint is not configured; skipping server-side validation.');
+      return files.map((file) => ({ fileName: file.name, allowed: true }));
+    }
+
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('files', file, file.name);
+    });
+
+    const response = await authService.authenticatedFetch(API_ENDPOINTS.UPLOAD_SCAN, {
+      method: 'POST',
+      body: formData,
+      requiresAuth: true,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload scan failed with status ${response.status}`);
+    }
+
+    try {
+      const payload = await response.json();
+      const rawResults: unknown = Array.isArray(payload?.results) ? payload.results : payload;
+
+      if (!Array.isArray(rawResults)) {
+        console.warn('Unexpected upload scan response structure. Treating files as allowed.');
+        return files.map((file) => ({ fileName: file.name, allowed: true }));
+      }
+
+      return rawResults.map((item, index) => {
+        const file = files[index];
+        if (item && typeof item === 'object' && 'allowed' in item) {
+          const normalizedReason =
+            typeof (item as Record<string, unknown>).reason === 'string'
+              ? ((item as Record<string, unknown>).reason as string).trim()
+              : undefined;
+          return {
+            fileName:
+              typeof (item as Record<string, unknown>).fileName === 'string'
+                ? ((item as Record<string, unknown>).fileName as string)
+                : file.name,
+            allowed: Boolean((item as Record<string, unknown>).allowed),
+            reason: normalizedReason && normalizedReason.length > 0 ? normalizedReason : undefined,
+          } satisfies UploadScanResult;
+        }
+
+        return {
+          fileName: file.name,
+          allowed: true,
+        } satisfies UploadScanResult;
+      });
+    } catch (error) {
+      console.warn('Unable to parse upload scan response. Treating files as allowed.', error);
+      return files.map((file) => ({ fileName: file.name, allowed: true }));
+    }
+  }, []);
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.target;
+    const selectedFiles = Array.from(input.files ?? []);
     if (selectedFiles.length === 0) {
       return;
     }
 
     const issues: string[] = [];
-    const nextImages: PlantImageFile[] = [];
+    const candidateFiles: File[] = [];
 
-    selectedFiles.forEach((file) => {
-      if (!ALLOWED_IMAGE_TYPE_SET.has(file.type)) {
-        issues.push(`"${file.name}" must be an ${IMAGE_TYPES_LABEL} file.`);
-        return;
+    for (const file of selectedFiles) {
+      if (images.length + candidateFiles.length >= MAX_IMAGE_COUNT) {
+        const message = `Cannot add "${file.name}" because you can upload up to ${MAX_IMAGE_COUNT} images per listing. Remove an existing photo to upload another.`;
+        issues.push(message);
+        logImageValidationFailure(file, message);
+        continue;
       }
+
+      const normalizedType = (file.type || '').toLowerCase();
+      if (!normalizedType || !ALLOWED_IMAGE_TYPE_SET.has(normalizedType)) {
+        const message = `"${file.name}" must be an ${IMAGE_TYPES_LABEL} file.`;
+        issues.push(message);
+        logImageValidationFailure(file, message);
+        continue;
+      }
+
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        issues.push(`"${file.name}" is larger than ${MAX_FILE_SIZE_MB}MB.`);
+        const message = `"${file.name}" is larger than ${MAX_FILE_SIZE_MB}MB.`;
+        issues.push(message);
+        logImageValidationFailure(file, message);
+        continue;
+      }
+
+      try {
+        const { width, height } = await loadImageDimensions(file);
+        if (width < MIN_IMAGE_WIDTH || height < MIN_IMAGE_HEIGHT) {
+          const message = `"${file.name}" must be at least ${MIN_IMAGE_DIMENSION_LABEL}.`;
+          issues.push(message);
+          logImageValidationFailure(file, `${message} (actual: ${width}x${height})`);
+          continue;
+        }
+      } catch (error) {
+        const message = `Could not verify image dimensions for "${file.name}".`;
+        issues.push(message);
+        logImageValidationFailure(file, `${message} ${(error as Error).message ?? ''}`.trim());
+        continue;
+      }
+
+      candidateFiles.push(file);
+    }
+
+    let scanResults: UploadScanResult[] = [];
+    if (candidateFiles.length > 0) {
+      try {
+        scanResults = await performUploadSecurityScan(candidateFiles);
+      } catch (error) {
+        const message = 'Unable to complete security checks for your images. Please try again.';
+        setFieldError('images', message);
+        toast.error(message);
+        console.error('Upload security scan failed', error);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
         return;
       }
-      nextImages.push({
+    }
+
+    const approvedImages: PlantImageFile[] = [];
+    candidateFiles.forEach((file, index) => {
+      const result = scanResults[index];
+      if (result && !result.allowed) {
+        const reasonSuffix = result.reason ? ` ${result.reason}` : '';
+        const message = `"${result.fileName || file.name}" was blocked by security scanning.${reasonSuffix}`;
+        issues.push(message);
+        logImageValidationFailure(file, `Server-side scan rejection${reasonSuffix ? `: ${reasonSuffix.trim()}` : ''}`);
+        return;
+      }
+
+      approvedImages.push({
         id: createImageId(),
         file,
         previewUrl: URL.createObjectURL(file),
       });
     });
 
-    if (nextImages.length > 0) {
-      setImages((prev) => [...prev, ...nextImages]);
+    if (approvedImages.length > 0) {
+      setImages((prev) => [...prev, ...approvedImages]);
       clearFieldError('images');
     }
 
     if (issues.length > 0) {
-      setFieldError('images', issues.join(' '));
+      const message = issues.join(' ');
+      setFieldError('images', message);
+      const firstIssue = issues[0];
+      toast.error(
+        issues.length > 1
+          ? `${firstIssue} Additional files were rejected. Please review the requirements.`
+          : firstIssue,
+      );
     }
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    } else {
+      input.value = '';
     }
   };
 
@@ -673,7 +839,9 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                   </div>
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Accepts {IMAGE_TYPES_LABEL} up to {MAX_FILE_SIZE_MB}MB each.
+                  Accepts {IMAGE_TYPES_LABEL} up to {MAX_FILE_SIZE_MB}MB each. Minimum resolution {MIN_IMAGE_DIMENSION_LABEL}. Up to
+                  {' '}
+                  {MAX_IMAGE_COUNT} photos per listing.
                 </p>
                 {fieldErrors.images && <p className="mt-2 text-xs text-destructive">{fieldErrors.images}</p>}
               </div>
