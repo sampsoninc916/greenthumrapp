@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { PlantCard } from './components/PlantCard';
@@ -9,91 +9,13 @@ import { MobileActionBar } from './components/MobileActionBar';
 import { SlidersHorizontal, Grid3X3, List } from 'lucide-react';
 import './index.css';
 import './App.css';
-import type { Plant, DeliveryMethod, LivePlantWarranty } from './interfaces/Plant';
+import type { Plant } from './interfaces/Plant';
 import { useAuth } from './contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API_ENDPOINTS } from './config/amplify';
 import { apiClient } from './services/auth';
-import type { ZipRange } from './interfaces/Plant';
-import { DELIVERY_METHOD_OPTIONS } from './constants/fulfillmentRules';
+import { normalizePlantRecord } from './utils/plants';
 import { useIsMobile } from './hooks/useIsMobile';
-
-const VALID_DELIVERY_METHODS = new Set<DeliveryMethod>(
-  DELIVERY_METHOD_OPTIONS.map((option) => option.value),
-);
-
-const normalizeZipRanges = (ranges: any[]): ZipRange[] => {
-  return ranges
-    .map((range) => {
-      const start =
-        typeof range?.start === 'string'
-          ? range.start
-          : typeof range?.startZip === 'string'
-          ? range.startZip
-          : '';
-      const endCandidate =
-        typeof range?.end === 'string'
-          ? range.end
-          : typeof range?.endZip === 'string'
-          ? range.endZip
-          : '';
-      const end = endCandidate || start;
-      if (!start || !end) {
-        return null;
-      }
-      return { start, end } satisfies ZipRange;
-    })
-    .filter((value): value is ZipRange => Boolean(value));
-};
-
-const normalizePlantRecord = (plant: any): Plant => {
-  const deliveryMethods: DeliveryMethod[] = Array.isArray(plant?.deliveryMethods)
-    ? plant.deliveryMethods.filter(
-        (method: unknown): method is DeliveryMethod =>
-          typeof method === 'string' && VALID_DELIVERY_METHODS.has(method as DeliveryMethod),
-      )
-    : [];
-
-  const availableZipRanges: ZipRange[] = Array.isArray(plant?.availableZipRanges)
-    ? normalizeZipRanges(plant.availableZipRanges)
-    : [];
-
-  const packagingNotes = typeof plant?.packagingNotes === 'string' ? plant.packagingNotes : '';
-
-  const rawWarranty = plant?.livePlantWarranty;
-  let normalizedWarranty: LivePlantWarranty = { isOffered: false };
-  if (rawWarranty && typeof rawWarranty === 'object') {
-    const durationRaw = rawWarranty.durationDays;
-    const parsedDuration =
-      typeof durationRaw === 'number'
-        ? durationRaw
-        : typeof durationRaw === 'string'
-        ? Number(durationRaw)
-        : undefined;
-    const durationDays =
-      parsedDuration !== undefined && Number.isFinite(parsedDuration) && parsedDuration > 0
-        ? parsedDuration
-        : undefined;
-    const notes =
-      typeof rawWarranty.notes === 'string' && rawWarranty.notes.trim().length > 0
-        ? rawWarranty.notes
-        : undefined;
-
-    normalizedWarranty = {
-      isOffered: Boolean(rawWarranty.isOffered),
-      durationDays,
-      notes,
-    };
-  }
-
-  return {
-    ...plant,
-    deliveryMethods,
-    availableZipRanges,
-    packagingNotes,
-    livePlantWarranty: normalizedWarranty,
-  } as Plant;
-};
 
 const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,30 +35,32 @@ const App = () => {
   const navigate = useNavigate();
   const { plantId } = useParams<{ plantId?: string }>();
   const isMobile = useIsMobile();
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        // Public endpoint - no authentication required for viewing plants
-        const response = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const result = await response.json();
-        const normalizedPlants: Plant[] = Array.isArray(result)
-          ? result.map((item: any) => normalizePlantRecord(item))
-          : [];
-        setPlantsData(normalizedPlants);
-      } catch (err) {
-        console.error('Error fetching plants:', err);
-        setError(true);
-      } finally {
-        setLoading(false);
+  // TODO: Consider replacing the manual fetch logic with React Query or SWR for cache management.
+  const fetchPlants = useCallback(async () => {
+    try {
+      setLoading(true);
+      // Public endpoint - no authentication required for viewing plants
+      const response = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
-
-    fetchData();
+      const result = await response.json();
+      const normalizedPlants: Plant[] = Array.isArray(result)
+        ? result.map((item: any) => normalizePlantRecord(item))
+        : [];
+      setPlantsData(normalizedPlants);
+      setError(false);
+    } catch (err) {
+      console.error('Error fetching plants:', err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void fetchPlants();
+  }, [fetchPlants]);
 
   const selectedPlant = useMemo(() => {
     if (!plantId) {
@@ -186,11 +110,32 @@ const App = () => {
     });
   }, [searchQuery, filters, plantsData]);
 
-  const handlePlantUpdate = (updatedPlant: Plant) => {
-    setPlantsData(prev =>
-      prev.map(plant => (plant.id === updatedPlant.id ? { ...plant, ...updatedPlant } : plant))
-    );
-  };
+  const handlePlantUpdate = useCallback((updatedPlant: Plant) => {
+    setPlantsData((prev) => {
+      const existingIndex = prev.findIndex((plant) => plant.id === updatedPlant.id);
+      if (existingIndex === -1) {
+        return [...prev, updatedPlant];
+      }
+      const next = [...prev];
+      next[existingIndex] = { ...next[existingIndex], ...updatedPlant };
+      return next;
+    });
+  }, []);
+
+  const handleListingCreated = useCallback(
+    (createdPlant: Plant) => {
+      handlePlantUpdate(createdPlant);
+      void fetchPlants();
+    },
+    [fetchPlants, handlePlantUpdate],
+  );
+
+  const handleListingUpdated = useCallback(
+    (_updatedPlant: Plant) => {
+      void fetchPlants();
+    },
+    [fetchPlants],
+  );
 
   const handleViewDetail = (plant: Plant) => {
     navigate(`/plants/${plant.id}`);
@@ -319,6 +264,7 @@ const App = () => {
           <CreateNewPlantModal
             isOpen={isCreateNewPlantModalOpen}
             onClose={() => setIsCreateNewPlantModalOpen(false)}
+            onListingCreated={handleListingCreated}
           />
         </>
       )}
@@ -335,6 +281,7 @@ const App = () => {
           isOpen={isDetailRoute}
           onClose={handleCloseDetail}
           onPlantUpdate={handlePlantUpdate}
+          onListingUpdated={handleListingUpdated}
           presentation={isMobile ? 'page' : 'modal'}
         />
       )}

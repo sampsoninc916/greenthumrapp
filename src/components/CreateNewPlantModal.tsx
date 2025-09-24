@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
 import { API_ENDPOINTS } from '../config/amplify';
 import type { DeliveryMethod, LivePlantWarranty } from '../interfaces/Plant';
+import type { Plant } from '../interfaces/Plant';
 import {
   DELIVERY_METHOD_OPTIONS,
   extractStateCode,
@@ -23,6 +24,7 @@ import {
   requiresZipRanges,
 } from '../constants/fulfillmentRules';
 import { parseRestrictedStatesInput } from '../utils/compliance';
+import { normalizePlantRecord } from '../utils/plants';
 
 type FieldName =
   | 'images'
@@ -121,6 +123,7 @@ const STEPS = [
 interface CreateNewPlantModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onListingCreated?: (plant: Plant) => void;
 }
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -148,7 +151,7 @@ const createImageId = () => {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
-export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProps) {
+export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: CreateNewPlantModalProps) {
   const [images, setImages] = useState<PlantImageFile[]>([]);
   const [plantName, setPlantName] = useState('');
   const [price, setPrice] = useState('');
@@ -898,8 +901,25 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
         throw new Error(message);
       }
 
-      const data = await res.json();
-      console.log('Plant created:', data);
+      const responseBody = await res.json();
+      const rawPlant =
+        responseBody && typeof responseBody === 'object' && 'plant' in responseBody
+          ? (responseBody as { plant: unknown }).plant
+          : responseBody;
+      let createdPlant: Plant | null = null;
+      if (rawPlant && typeof rawPlant === 'object') {
+        const normalized = normalizePlantRecord(rawPlant);
+        if (normalized && typeof normalized.id === 'string') {
+          createdPlant = normalized;
+        }
+      }
+
+      if (createdPlant) {
+        console.log('Plant created:', createdPlant);
+        onListingCreated?.(createdPlant);
+      } else {
+        console.warn('Plant created but response payload could not be normalized.');
+      }
 
       toast.success('Your plant listing is live!');
       resetForm();
