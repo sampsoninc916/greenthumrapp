@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent, useMemo, type ReactNode } from "react";
+import { useState, useEffect, ChangeEvent, useMemo, useCallback, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -7,7 +7,6 @@ import { Plant } from "../interfaces/Plant";
 import { User } from "../interfaces/User";
 import { API_ENDPOINTS } from "../config/amplify";
 import { apiClient } from "../services/auth";
-import { getCurrentUser } from "aws-amplify/auth";
 import { useAuth } from "../contexts/AuthContext";
 import { AccountDeletedModal } from "./AccountDeletedModal";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
@@ -19,6 +18,7 @@ import { useIsMobile } from "../hooks/useIsMobile";
 import { MobileActionBar } from "./MobileActionBar";
 import { Badge } from "./ui/badge";
 import { buildComplianceContext, hasCompliance } from "../utils/compliance";
+import { authService } from "../services/auth";
 
 interface Review {
   rating: number;
@@ -52,21 +52,6 @@ function parseUserData(data: any) {
     },
   };
 }
-
-const getUser = async (logout: () => Promise<void>) => {
-  try {
-    const user = await getCurrentUser();
-    if (user) {
-      return user;
-    } else {
-      console.log("No user found, logging out.");
-      await logout();
-    }
-  } catch (error) {
-    console.error("Error fetching current user:", error);
-    return null;
-  }
-};
 
 const initialUser: User = {
   userId: "",
@@ -110,7 +95,7 @@ export function ProfilePage() {
   const [userPlantListings, setUserPlantListings] = useState<Plant[]>([]);
   const [userSavedListings, setUserSavedListings] = useState<Plant[]>([]);
   const [showDeletedModal, setShowDeletedModal] = useState(false);
-  const { deleteAccount, role } = useAuth();
+  const { deleteAccount, role, user: authUser, logout } = useAuth();
   const isSeller = role === "seller";
   const navigate = useNavigate();
   const isMobileView = useIsMobile();
@@ -123,7 +108,31 @@ export function ProfilePage() {
     | { type: "success" | "error"; message: string }
     | null
   >(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const marketingGlobalUnsubscribed = user.consents?.marketingGlobalUnsubscribed ?? false;
+
+  const redirectToLogin = useCallback(
+    async (forceReauth = false) => {
+      try {
+        await logout();
+      } catch (logoutError) {
+        console.warn("Failed to terminate session before redirect", logoutError);
+      }
+
+      const fallbackPath = "/";
+      const redirectTarget =
+        typeof window !== "undefined"
+          ? `${window.location.pathname}${window.location.search}${window.location.hash}`
+          : fallbackPath;
+      const encodedTarget = encodeURIComponent(redirectTarget);
+      const destination = forceReauth
+        ? `/login?reauth=1&redirect=${encodedTarget}`
+        : `/login?redirect=${encodedTarget}`;
+
+      navigate(destination, { replace: true });
+    },
+    [logout, navigate],
+  );
 
   const formatConsentDate = (value: string | null) => {
     if (!value) {
@@ -198,23 +207,97 @@ export function ProfilePage() {
     });
   }, [user.consents.marketingEmailOptIn, user.consents.marketingSmsOptIn]);
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    const resolveUserId = async () => {
+      const contextUserId =
+        authUser?.userId ??
+        (typeof authUser?.username === "string" ? authUser.username : undefined) ??
+        (authUser?.signInDetails && typeof authUser.signInDetails.loginId === "string"
+          ? authUser.signInDetails.loginId
+          : undefined);
+
+      if (contextUserId) {
+        if (!isCancelled) {
+          setCurrentUserId(contextUserId);
+        }
+        return;
+      }
+
+      try {
+        const userInfo = await authService.getUserInfo();
+        const derivedUserId =
+          (userInfo && typeof userInfo.sub === "string" && userInfo.sub.trim().length > 0
+            ? userInfo.sub
+            : undefined) ??
+          (userInfo && typeof userInfo.username === "string" && userInfo.username.trim().length > 0
+            ? userInfo.username
+            : undefined);
+
+        if (!isCancelled) {
+          if (derivedUserId) {
+            setCurrentUserId(derivedUserId);
+          } else {
+            await redirectToLogin();
+          }
+        }
+      } catch (error) {
+        console.error("Failed to resolve user identifier", error);
+        if (!isCancelled) {
+          await redirectToLogin(true);
+        }
+      }
+    };
+
+    void resolveUserId();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [authUser, redirectToLogin]);
+
   // Fetch user data from API on mount
   useEffect(() => {
-    async function fetchUserAndPlants() {
+    if (!currentUserId) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchUserAndPlants = async () => {
       try {
-        const response = await apiClient.get(API_ENDPOINTS.USERS_READ, true); // Requires auth to read user data
-        if (!response.ok) throw new Error("Failed to fetch user data");
+        const response = await apiClient.get(API_ENDPOINTS.USERS_READ, {
+          requiresAuth: true,
+          params: { userId: currentUserId },
+        });
+
+        if (response.status === 401) {
+          if (!isCancelled) {
+            await redirectToLogin();
+          }
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch user data");
+        }
+
         const data = await response.json();
         const parsed = parseUserData(data);
 
-        // Fetch all plant data
-        const plantsResponse = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false); // Public endpoint
-        if (!plantsResponse.ok) throw new Error("Failed to fetch plants data");
+        const plantsResponse = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false);
+        if (!plantsResponse.ok) {
+          throw new Error("Failed to fetch plants data");
+        }
         const allPlants: Plant[] = await plantsResponse.json();
 
-        // Filter plants for user's listings
         const userPlants = allPlants.filter((plant) => parsed.plantListingIds.includes(plant.id));
         const savedPlants = allPlants.filter((plant) => parsed.savedListingIds.includes(plant.id));
+
+        if (isCancelled) {
+          return;
+        }
 
         setUserPlantListings(userPlants);
         setUserSavedListings(savedPlants);
@@ -231,11 +314,23 @@ export function ProfilePage() {
           marketingSmsOptIn: parsed.consents.marketingSmsOptIn,
         });
       } catch (error) {
-        console.error(error);
+        const message = error instanceof Error ? error.message : String(error);
+        if (/sign in/i.test(message) || /auth/i.test(message)) {
+          if (!isCancelled) {
+            await redirectToLogin();
+          }
+        } else {
+          console.error(error);
+        }
       }
-    }
-    fetchUserAndPlants();
-  }, []);
+    };
+
+    void fetchUserAndPlants();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentUserId, redirectToLogin]);
 
   // Handle avatar file upload
   const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
