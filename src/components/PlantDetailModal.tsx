@@ -49,12 +49,14 @@ import {
   getComplianceHighlights,
   hasCompliance,
 } from '../utils/compliance';
+import { normalizePlantRecord } from '../utils/plants';
 
 interface PlantDetailModalProps {
   plant: Plant | null;
   isOpen: boolean;
   onClose: () => void;
   onPlantUpdate?: (plant: Plant) => void;
+  onListingUpdated?: (plant: Plant) => void;
   presentation?: 'modal' | 'page';
 }
 
@@ -70,6 +72,7 @@ export function PlantDetailModal({
   isOpen,
   onClose,
   onPlantUpdate,
+  onListingUpdated,
   presentation = 'modal',
 }: PlantDetailModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -627,44 +630,68 @@ export function PlantDetailModal({
   const handleListingSave = async (
     updatedPlant: Plant,
     changedFields: Set<keyof Plant>,
-  ) => {
-    // Only send the fields that were actually changed
-    const changedData: Partial<Record<keyof Plant, Plant[keyof Plant]>> = {};
+  ): Promise<Plant | undefined> => {
+    if (changedFields.size === 0) {
+      console.log('No changes to save');
+      setIsEditListingScreenOpen(false);
+      return undefined;
+    }
 
-    // Build object with only changed fields
+    const changedData: Partial<Record<keyof Plant, Plant[keyof Plant]>> = {};
     changedFields.forEach((field) => {
       changedData[field] = updatedPlant[field];
     });
-    
-    // Only make API call if there are changes
-    if (changedFields.size > 0) {
-      console.log('Sending changed fields:', changedData);
-      
-      try {
-        const response = await apiClient.put(
-          `${API_ENDPOINTS.PLANTS_UPDATE}?plantId=${updatedPlant.id}`,
-          changedData,
-          true // Requires authentication to update plants
-        );
-        
-        if (!response.ok) {
-          throw new Error('Failed to save changes');
+
+    console.log('Sending changed fields:', changedData);
+
+    try {
+      const response = await apiClient.put(
+        `${API_ENDPOINTS.PLANTS_UPDATE}?plantId=${updatedPlant.id}`,
+        changedData,
+        true,
+      );
+
+      if (!response.ok) {
+        let message = 'Failed to save changes.';
+        try {
+          const errorBody = await response.json();
+          if (errorBody && typeof errorBody?.message === 'string') {
+            message = errorBody.message;
+          }
+        } catch (parseError) {
+          console.warn('Unable to parse error response', parseError);
         }
-        
-        console.log('Successfully saved changes');
-        // Update the local state with the new plant data
-        setCurrentPlant(updatedPlant);
-        onPlantUpdate?.(updatedPlant);
-      } catch (error) {
-        console.error('Error saving changes:', error);
-        alert('Failed to save changes. Please try again.');
-        return;
+        throw new Error(message);
       }
-    } else {
-      console.log('No changes to save');
+
+      let savedPlantPayload: unknown;
+      try {
+        savedPlantPayload = await response.json();
+      } catch (parseError) {
+        console.warn('Unable to parse plant update response; falling back to request payload.', parseError);
+      }
+
+      const rawPlant =
+        savedPlantPayload && typeof savedPlantPayload === 'object' && 'plant' in savedPlantPayload
+          ? (savedPlantPayload as { plant: unknown }).plant
+          : savedPlantPayload;
+
+      const normalizedPlant =
+        rawPlant && typeof rawPlant === 'object'
+          ? normalizePlantRecord(rawPlant)
+          : normalizePlantRecord(updatedPlant);
+
+      setCurrentPlant(normalizedPlant);
+      onPlantUpdate?.(normalizedPlant);
+      setIsEditListingScreenOpen(false);
+      return normalizedPlant;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to save changes. Please try again.';
+      console.error('Error saving changes:', error);
+      toast.error(message);
+      throw new Error(message);
     }
-    
-    setIsEditListingScreenOpen(false);
   };
 
   const renderImageGallery = () => (
@@ -1402,7 +1429,7 @@ export function PlantDetailModal({
     return (
       <>
         {renderPageShell(pageBody, pageTitle, handleBackAction)}
-        {isEditListingScreenOpen && (
+        {isEditListingScreenOpen && ( 
           <Dialog
             open={isEditListingScreenOpen}
             onOpenChange={(nextOpen) => {
@@ -1415,6 +1442,9 @@ export function PlantDetailModal({
               plant={currentPlant}
               onCancel={() => setIsEditListingScreenOpen(false)}
               onSave={handleListingSave}
+              onListingUpdated={(plant) => {
+                onListingUpdated?.(plant);
+              }}
             />
           </Dialog>
         )}
@@ -1443,6 +1473,9 @@ export function PlantDetailModal({
             plant={currentPlant}
             onCancel={() => setIsEditListingScreenOpen(false)}
             onSave={handleListingSave}
+            onListingUpdated={(plant) => {
+              onListingUpdated?.(plant);
+            }}
           />
         )}
         {isReviewScreenOpen && (

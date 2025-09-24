@@ -29,13 +29,15 @@ import {
 interface EditListingScreenProps {
     plant: Plant;
     onCancel: () => void;
-    onSave: (updatedPlant: Plant, changedFields: Set<keyof Plant>) => void;
+    onSave: (updatedPlant: Plant, changedFields: Set<keyof Plant>) => Promise<Plant | undefined>;
+    onListingUpdated?: (plant: Plant) => void;
 }
 
 export function EditListingScreen({
     plant,
     onCancel,
     onSave,
+    onListingUpdated,
 }: EditListingScreenProps) {
     const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
     
@@ -187,7 +189,7 @@ export function EditListingScreen({
     };
 
     // Handler for saving changes
-    const handleSave = () => {
+    const handleSave = async () => {
         setFormError(null);
 
         if (editedPlant.price < 0) {
@@ -354,16 +356,33 @@ export function EditListingScreen({
             updatedChangedFields.delete('livePlantWarranty');
         }
 
-        onSave(updatedPlant, updatedChangedFields);
-        setEditedPlant(updatedPlant);
-        setChangedFields(updatedChangedFields);
-        setWarrantyOffered(normalizedWarranty.isOffered);
-        setWarrantyNotes(normalizedWarranty.notes ?? '');
-        setWarrantyDurationInput(
-            normalizedWarranty.isOffered && normalizedWarranty.durationDays
-                ? normalizedWarranty.durationDays.toString()
-                : ''
-        );
+        try {
+            const savedPlant = await onSave(updatedPlant, updatedChangedFields);
+            if (savedPlant) {
+                setEditedPlant(savedPlant);
+                setPriceInput(savedPlant.price.toString());
+                setChangedFields(new Set());
+                setWarrantyOffered(savedPlant.livePlantWarranty?.isOffered ?? false);
+                setWarrantyNotes(savedPlant.livePlantWarranty?.notes ?? '');
+                setWarrantyDurationInput(
+                    savedPlant.livePlantWarranty?.isOffered && savedPlant.livePlantWarranty?.durationDays
+                        ? savedPlant.livePlantWarranty.durationDays.toString()
+                        : ''
+                );
+                if (savedPlant.availableZipRanges) {
+                    setZipRangeInput(
+                        savedPlant.availableZipRanges.length > 0
+                            ? savedPlant.availableZipRanges.map(formatZipRange).join('\n')
+                            : ''
+                    );
+                }
+                onListingUpdated?.(savedPlant);
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to save changes.';
+            setFormError(message);
+            return;
+        }
     };
 
     return (
@@ -743,7 +762,12 @@ export function EditListingScreen({
                 <Button variant="outline" onClick={onCancel} className="text-sm">
                     Cancel
                 </Button>
-                <Button className="bg-green-600 hover:bg-green-700 text-white text-sm" onClick={handleSave}>
+                <Button
+                    className="bg-green-600 hover:bg-green-700 text-white text-sm"
+                    onClick={() => {
+                        void handleSave();
+                    }}
+                >
                     Save Changes
                 </Button>
             </div>
