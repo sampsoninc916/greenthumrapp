@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useRef
+} from 'react';
 import {
   signIn,
   signOut,
@@ -51,9 +59,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [role, setRole] = useState<UserRole | null>(null);
 
-  const storage = SECURITY_CONFIG.TOKEN_STORAGE === 'local' ? localStorage : sessionStorage;
+  type AuthSessionResult = Awaited<ReturnType<typeof fetchAuthSession>>;
 
-  const extractRoleFromPayload = (payload: Record<string, any> | undefined): UserRole | null => {
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTokenRef = useRef<(() => Promise<void>) | null>(null);
+
+  const extractRoleFromPayload = useCallback((payload: Record<string, any> | undefined): UserRole | null => {
     if (!payload) {
       return null;
     }
@@ -62,73 +74,241 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return rawRole;
     }
     return null;
-  };
+  }, []);
 
-  const loadUserSession = async () => {
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearIdleTimer = useCallback(() => {
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearClientState = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    setRole(null);
+    clearRefreshTimer();
+    clearIdleTimer();
+  }, [clearRefreshTimer, clearIdleTimer]);
+
+  const ensureSecureSession = useCallback(async (session: AuthSessionResult) => {
+    if (SECURITY_CONFIG.SESSION_STRATEGY !== 'token-exchange') {
+      return true;
+    }
+
+    if (!SECURITY_CONFIG.TOKEN_EXCHANGE_ENDPOINT) {
+      console.error('Token exchange strategy selected but TOKEN_EXCHANGE_ENDPOINT is not configured.');
+      return false;
+    }
+
+    if (!session.tokens?.idToken) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(SECURITY_CONFIG.TOKEN_EXCHANGE_ENDPOINT, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken: session.tokens.idToken.toString(),
+          accessToken: session.tokens.accessToken?.toString()
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Token exchange endpoint responded with status', response.status);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to exchange Cognito tokens for secure session cookies:', error);
+      return false;
+    }
+  }, []);
+
+  const scheduleTokenRefresh = useCallback(
+    (expiry?: number) => {
+      if (!expiry) {
+        return;
+      }
+      const currentTime = Math.floor(Date.now() / 1000);
+      const timeUntilExpiry = (expiry - currentTime - SECURITY_CONFIG.TOKEN_REFRESH_BUFFER) * 1000;
+
+      if (timeUntilExpiry <= 0) {
+        if (refreshTokenRef.current) {
+          void refreshTokenRef.current();
+        }
+        return;
+      }
+
+      clearRefreshTimer();
+      refreshTimeoutRef.current = window.setTimeout(() => {
+        if (refreshTokenRef.current) {
+          void refreshTokenRef.current();
+        }
+      }, timeUntilExpiry);
+    },
+    [clearRefreshTimer]
+  );
+
+  const handleSessionUpdate = useCallback(
+    async (session: AuthSessionResult, currentUser?: AuthUser | null) => {
+      if (!session.tokens?.idToken) {
+        throw new Error('Missing ID token in session');
+      }
+
+      const secureSessionOk = await ensureSecureSession(session);
+      if (!secureSessionOk) {
+        throw new Error('Unable to establish secure session');
+      }
+
+      if (currentUser) {
+        setUser(currentUser);
+      }
+
+      const idToken = session.tokens.idToken.toString();
+      setToken(idToken);
+      setRole(extractRoleFromPayload(session.tokens.idToken.payload));
+      scheduleTokenRefresh(session.tokens.idToken.payload?.exp);
+    },
+    [ensureSecureSession, extractRoleFromPayload, scheduleTokenRefresh]
+  );
+
+  const clearSecureSession = useCallback(async () => {
+    if (SECURITY_CONFIG.SESSION_STRATEGY !== 'token-exchange') {
+      return;
+    }
+
+    if (!SECURITY_CONFIG.SESSION_LOGOUT_ENDPOINT) {
+      console.warn('SESSION_LOGOUT_ENDPOINT is not configured for token-exchange strategy.');
+      return;
+    }
+
+    try {
+      await fetch(SECURITY_CONFIG.SESSION_LOGOUT_ENDPOINT, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Failed to clear secure session cookie:', error);
+    }
+  }, []);
+
+  const performSignOut = useCallback(async () => {
+    try {
+      await signOut({ global: true });
+    } catch (error) {
+      console.error('Global sign-out error:', error);
+    } finally {
+      await clearSecureSession();
+      clearClientState();
+    }
+  }, [clearClientState, clearSecureSession]);
+
+  const handleIdleLogout = useCallback(async () => {
+    console.warn('Idle timeout reached. Performing secure sign-out.');
+    await performSignOut();
+  }, [performSignOut]);
+
+  const startIdleTimer = useCallback(() => {
+    if (!SECURITY_CONFIG.IDLE_TIMEOUT_MS) {
+      return;
+    }
+
+    clearIdleTimer();
+    idleTimeoutRef.current = window.setTimeout(() => {
+      void handleIdleLogout();
+    }, SECURITY_CONFIG.IDLE_TIMEOUT_MS);
+  }, [clearIdleTimer, handleIdleLogout]);
+
+  const loadUserSession = useCallback(async () => {
     try {
       const currentUser = await getCurrentUser();
       const session = await fetchAuthSession();
-
-      if (session.tokens?.idToken) {
-        setUser(currentUser);
-        setToken(session.tokens.idToken.toString());
-        setRole(extractRoleFromPayload(session.tokens.idToken.payload));
-
-        // Store token in sessionStorage for better security
-        storage.setItem('authToken', session.tokens.idToken.toString());
-
-        // Set up token refresh before expiry
-        const expiryTime = session.tokens.idToken.payload.exp;
-        if (expiryTime && typeof expiryTime === 'number') {
-          const currentTime = Math.floor(Date.now() / 1000);
-          const timeUntilExpiry = (expiryTime - currentTime - SECURITY_CONFIG.TOKEN_REFRESH_BUFFER) * 1000;
-          
-          if (timeUntilExpiry > 0) {
-            setTimeout(() => refreshToken(), timeUntilExpiry);
-          }
-        }
-      }
+      await handleSessionUpdate(session, currentUser);
     } catch (error) {
-      // User is not authenticated
-      setUser(null);
-      setToken(null);
-      setRole(null);
-      storage.removeItem('authToken');
+      console.warn('Failed to load authenticated session:', error);
+      clearClientState();
+      await clearSecureSession();
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clearClientState, clearSecureSession, handleSessionUpdate]);
+
+  const refreshToken = useCallback(async () => {
+    try {
+      const session = await fetchAuthSession({ forceRefresh: true });
+      await handleSessionUpdate(session);
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      await performSignOut();
+    }
+  }, [handleSessionUpdate, performSignOut]);
+
+  useEffect(() => {
+    refreshTokenRef.current = refreshToken;
+  }, [refreshToken]);
 
   useEffect(() => {
     loadUserSession();
-  }, []);
+  }, [loadUserSession]);
 
-  const login = async (username: string, password: string) => {
+  useEffect(() => {
+    if (!SECURITY_CONFIG.IDLE_TIMEOUT_MS) {
+      return;
+    }
+
+    if (!user) {
+      clearIdleTimer();
+      return;
+    }
+
+    startIdleTimer();
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'touchstart'];
+    const activityHandler = () => startIdleTimer();
+
+    events.forEach(event => window.addEventListener(event, activityHandler));
+
+    return () => {
+      events.forEach(event => window.removeEventListener(event, activityHandler));
+      clearIdleTimer();
+    };
+  }, [user, startIdleTimer, clearIdleTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearRefreshTimer();
+      clearIdleTimer();
+    };
+  }, [clearRefreshTimer, clearIdleTimer]);
+
+  const login = useCallback(async (username: string, password: string) => {
     try {
       const { isSignedIn } = await signIn({ username, password });
       if (isSignedIn) {
+        setIsLoading(true);
         await loadUserSession();
       }
     } catch (error) {
       console.error('Login error:', error);
       throw error;
     }
-  };
+  }, [loadUserSession]);
 
-  const logout = async () => {
-    try {
-      await signOut();
-      setUser(null);
-      setToken(null);
-      setRole(null);
-      storage.removeItem('authToken');
-    } catch (error) {
-      console.error('Logout error:', error);
-      throw error;
-    }
-  };
+  const logout = useCallback(async () => {
+    await performSignOut();
+  }, [performSignOut]);
 
-  const signup = async (username: string, password: string, email: string, name: string, role: SignupRole) => {
+  const signup = useCallback(async (username: string, password: string, email: string, name: string, role: SignupRole) => {
     try {
       await signUp({
         username,
@@ -146,58 +326,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Signup error:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const confirmSignup = async (username: string, code: string) => {
+  const confirmSignup = useCallback(async (username: string, code: string) => {
     try {
       await confirmSignUp({ username, confirmationCode: code });
     } catch (error) {
       console.error('Confirmation error:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const refreshToken = async () => {
-    try {
-      const session = await fetchAuthSession({ forceRefresh: true });
-      if (session.tokens?.idToken) {
-        setToken(session.tokens.idToken.toString());
-        setRole(extractRoleFromPayload(session.tokens.idToken.payload));
-        storage.setItem('authToken', session.tokens.idToken.toString());
-
-        // Set up next refresh
-        const expiryTime = session.tokens.idToken.payload.exp;
-        if (expiryTime && typeof expiryTime === 'number') {
-          const currentTime = Math.floor(Date.now() / 1000);
-          const timeUntilExpiry = (expiryTime - currentTime - SECURITY_CONFIG.TOKEN_REFRESH_BUFFER) * 1000;
-          
-          if (timeUntilExpiry > 0) {
-            setTimeout(() => refreshToken(), timeUntilExpiry);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      // If refresh fails, log the user out
-      await logout();
-    }
-  };
-
-  const deleteAccount = async () => {
+  const deleteAccount = useCallback(async () => {
     try {
       const currentUser = await getCurrentUser();
       if (currentUser) {
         await deleteUser();
-        setUser(null);
-        setToken(null);
-        setRole(null);
-        storage.removeItem('authToken');
+        await clearSecureSession();
+        clearClientState();
       }
     } catch (error) {
       console.error('Error deleting user:', error);
       throw error;
     }
-  };
+  }, [clearClientState, clearSecureSession]);
 
   const value: AuthContextType = {
     user,

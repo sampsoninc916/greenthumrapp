@@ -1,4 +1,7 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { SECURITY_CONFIG } from '../config/amplify';
+
+type UserRole = 'buyer' | 'seller' | 'admin';
 
 interface RequestConfig extends RequestInit {
   requiresAuth?: boolean;
@@ -6,16 +9,24 @@ interface RequestConfig extends RequestInit {
 
 class AuthService {
   private static instance: AuthService;
+  private roleCache: UserRole | null = null;
 
   private constructor() {}
 
-  private extractRole(payload: Record<string, any> | undefined): string | null {
+  private extractRole(payload: Record<string, any> | undefined): UserRole | null {
     if (!payload) {
       return null;
     }
     const rawRole = (payload["custom:role"] ?? payload["role"]) as string | undefined;
     if (rawRole === "buyer" || rawRole === "seller" || rawRole === "admin") {
       return rawRole;
+    }
+    return null;
+  }
+
+  private normalizeRole(role: unknown): UserRole | null {
+    if (role === "buyer" || role === "seller" || role === "admin") {
+      return role;
     }
     return null;
   }
@@ -31,9 +42,79 @@ class AuthService {
    * Get the current JWT token
    */
   async getToken(): Promise<string | null> {
+    const tokenInfo = await this.getTokenAndRole();
+    return tokenInfo?.token ?? null;
+  }
+
+  private appendForceRefreshParam(url: string): string {
+    if (url.includes('forceRefresh=')) {
+      return url;
+    }
+    return url.includes('?') ? `${url}&forceRefresh=true` : `${url}?forceRefresh=true`;
+  }
+
+  private async getTokenAndRole(
+    forceRefresh = false
+  ): Promise<{ token: string; role: UserRole | null } | null> {
+    if (SECURITY_CONFIG.SESSION_STRATEGY === 'token-exchange') {
+      if (!SECURITY_CONFIG.SESSION_TOKEN_ENDPOINT) {
+        console.error('SESSION_TOKEN_ENDPOINT is not configured for token-exchange strategy.');
+        return null;
+      }
+
+      const endpoint = forceRefresh
+        ? this.appendForceRefreshParam(SECURITY_CONFIG.SESSION_TOKEN_ENDPOINT)
+        : SECURITY_CONFIG.SESSION_TOKEN_ENDPOINT;
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          console.error(`Token retrieval endpoint responded with status ${response.status}`);
+          return null;
+        }
+
+        const data = (await response.json()) as { token?: string; role?: unknown };
+
+        if (!data || typeof data.token !== 'string') {
+          console.error('Token retrieval endpoint did not return a usable token.');
+          return null;
+        }
+
+        const normalizedRole = this.normalizeRole(data.role) ?? this.roleCache;
+        this.roleCache = normalizedRole ?? null;
+
+        return {
+          token: data.token,
+          role: normalizedRole ?? null
+        };
+      } catch (error) {
+        console.error('Error retrieving token from secure session:', error);
+        return null;
+      }
+    }
+
     try {
-      const session = await fetchAuthSession();
-      return session.tokens?.idToken?.toString() || null;
+      const session = forceRefresh
+        ? await fetchAuthSession({ forceRefresh: true })
+        : await fetchAuthSession();
+
+      const token = session.tokens?.idToken?.toString() ?? null;
+
+      if (!token) {
+        return null;
+      }
+
+      const role = this.extractRole(session.tokens?.idToken?.payload);
+      this.roleCache = role;
+
+      return {
+        token,
+        role
+      };
     } catch (error) {
       console.error('Error getting token:', error);
       return null;
@@ -45,19 +126,21 @@ class AuthService {
    */
   async authenticatedFetch(url: string, config: RequestConfig = {}): Promise<Response> {
     const { requiresAuth = true, ...fetchConfig } = config;
-    let role: string | null = null;
+    let role: UserRole | null = this.roleCache;
+
+    if (SECURITY_CONFIG.SESSION_STRATEGY === 'token-exchange') {
+      fetchConfig.credentials = fetchConfig.credentials ?? 'include';
+    }
 
     if (requiresAuth) {
-      const session = await fetchAuthSession();
-      const token = session.tokens?.idToken?.toString();
+      const tokenInfo = await this.getTokenAndRole();
+      const token = tokenInfo?.token;
+      role = tokenInfo?.role ?? role;
 
       if (!token) {
         throw new Error('No authentication token available');
       }
 
-      role = this.extractRole(session.tokens?.idToken?.payload);
-
-      // Add Authorization header
       const existingHeaders = new Headers(fetchConfig.headers as HeadersInit | undefined);
       existingHeaders.set('Authorization', `Bearer ${token}`);
       if (!existingHeaders.has('Content-Type')) {
@@ -65,6 +148,8 @@ class AuthService {
       }
       if (role) {
         existingHeaders.set('X-User-Role', role);
+      } else {
+        existingHeaders.delete('X-User-Role');
       }
       fetchConfig.headers = existingHeaders;
     } else if (fetchConfig.body) {
@@ -77,27 +162,28 @@ class AuthService {
 
     const response = await fetch(url, fetchConfig);
 
-    // Handle 401 Unauthorized
     if (response.status === 401 && requiresAuth) {
-      // Token might be expired, try to refresh
-      const session = await fetchAuthSession({ forceRefresh: true });
-      const newToken = session.tokens?.idToken?.toString();
-      role = this.extractRole(session.tokens?.idToken?.payload);
+      const refreshedInfo = await this.getTokenAndRole(true);
+      const newToken = refreshedInfo?.token;
+      role = refreshedInfo?.role ?? null;
 
       if (newToken) {
-        // Retry with new token
         const retryHeaders = new Headers(fetchConfig.headers as HeadersInit | undefined);
         retryHeaders.set('Authorization', `Bearer ${newToken}`);
         if (role) {
           retryHeaders.set('X-User-Role', role);
+        } else {
+          retryHeaders.delete('X-User-Role');
+        }
+        if (!retryHeaders.has('Content-Type') && fetchConfig.body) {
+          retryHeaders.set('Content-Type', 'application/json');
         }
         fetchConfig.headers = retryHeaders;
         return fetch(url, fetchConfig);
-      } else {
-        // Redirect to login if refresh fails
-        window.location.href = '/login';
-        throw new Error('Authentication failed');
       }
+
+      window.location.href = '/login';
+      throw new Error('Authentication failed');
     }
 
     return response;
