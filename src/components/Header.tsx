@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Search,
   Plus,
@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Gavel,
   ListChecks,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -21,7 +22,6 @@ import GreenThumrLogo from './assets/ThumrCircleLogo.png';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { formatCurrency } from '../utils/currency';
-import { messagesService } from '../services/messages';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +30,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from './ui/sheet';
+import { Separator } from './ui/separator';
+import { useUnreadConversations } from '../hooks/useUnreadConversations';
 
 interface HeaderProps {
   onSearch: (query: string) => void;
@@ -41,49 +51,14 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { isAuthenticated, logout, user, role } = useAuth();
   const { totals } = useCart();
-  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { unreadCount } = useUnreadConversations();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     onSearch(searchQuery);
   };
-
-  useEffect(() => {
-    let isMounted = true;
-    let interval: ReturnType<typeof setInterval> | undefined;
-
-    const fetchUnreadCount = async () => {
-      if (!isAuthenticated) {
-        if (isMounted) {
-          setUnreadCount(0);
-        }
-        return;
-      }
-
-      try {
-        const count = await messagesService.getUnreadCount();
-        if (isMounted) {
-          setUnreadCount(count);
-        }
-      } catch (error) {
-        console.error('Failed to load unread conversations', error);
-      }
-    };
-
-    fetchUnreadCount();
-
-    if (isAuthenticated) {
-      interval = window.setInterval(fetchUnreadCount, 60000);
-    }
-
-    return () => {
-      isMounted = false;
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [isAuthenticated]);
 
   const handleMessagesClick = () => {
     if (!isAuthenticated) {
@@ -91,6 +66,38 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
       return;
     }
     navigate('/messages');
+  };
+
+  const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  const handleMobileNavigate = (path: string) => {
+    closeMobileMenu();
+    navigate(path);
+  };
+
+  const handleMobileMessages = () => {
+    closeMobileMenu();
+    handleMessagesClick();
+  };
+
+  const handleMobileAddListing = () => {
+    closeMobileMenu();
+    onAddListing();
+  };
+
+  const handleMobileFilters = () => {
+    closeMobileMenu();
+    onMenuToggle();
+  };
+
+  const handleMobileLogout = async () => {
+    closeMobileMenu();
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Failed to logout', error);
+    }
+    navigate('/');
   };
 
   const cartCount = totals.itemCount;
@@ -103,18 +110,177 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
   const isAdmin = role === 'admin';
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-green-100">
-      <div className="container mx-auto px-4 h-16 flex items-center gap-4">
+    <header className="sticky top-0 z-50 border-b border-green-100 bg-white/95 backdrop-blur-md">
+      <div className="container mx-auto flex h-16 items-center gap-4 px-3 sm:h-20 sm:px-6">
         {/* Logo */}
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="md:hidden"
-            onClick={onMenuToggle}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
+          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="md:hidden"
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-full max-w-xs gap-0 p-0">
+              <SheetHeader className="bg-green-50/80 p-6 text-left">
+                <SheetTitle className="text-lg font-semibold text-green-900">
+                  {isAuthenticated
+                    ? `Hi, ${user?.username ?? 'friend'}!`
+                    : 'Welcome to Thumr'}
+                </SheetTitle>
+                <SheetDescription className="text-sm text-green-700">
+                  Quick shortcuts for browsing, selling, and managing your garden finds.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="space-y-4 p-4">
+                <div className="space-y-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 rounded-xl px-4 py-3 text-base font-semibold text-green-800 hover:bg-green-100"
+                    onClick={() => handleMobileNavigate('/')}
+                  >
+                    <Search className="h-5 w-5" />
+                    Browse listings
+                  </Button>
+                  {isAuthenticated && (
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 rounded-xl px-4 py-3 text-base font-semibold text-green-800 hover:bg-green-100"
+                      onClick={() => handleMobileNavigate('/profile')}
+                    >
+                      <User className="h-5 w-5" />
+                      Profile overview
+                    </Button>
+                  )}
+                  {isAuthenticated && (
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 rounded-xl px-4 py-3 text-base font-semibold text-green-800 hover:bg-green-100"
+                      onClick={() => handleMobileNavigate('/profile#saved')}
+                    >
+                      <Heart className="h-5 w-5" />
+                      Saved listings
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 rounded-xl px-4 py-3 text-base font-semibold text-green-800 hover:bg-green-100"
+                    onClick={() => handleMobileNavigate('/cart')}
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                    Cart
+                    {cartCount > 0 && (
+                      <Badge className="ml-auto bg-green-600 px-2 py-0.5 text-xs text-white">
+                        {cartBadgeContent}
+                      </Badge>
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 rounded-xl px-4 py-3 text-base font-semibold text-green-800 hover:bg-green-100"
+                    onClick={handleMobileMessages}
+                  >
+                    <MessageCircle className="h-5 w-5" />
+                    Messages
+                    {isAuthenticated && unreadCount > 0 && (
+                      <Badge className="ml-auto bg-green-600 px-2 py-0.5 text-xs text-white">
+                        {messagesBadgeContent}
+                      </Badge>
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 rounded-xl px-4 py-3 text-base font-semibold text-green-800 hover:bg-green-100"
+                    onClick={handleMobileFilters}
+                  >
+                    <SlidersHorizontal className="h-5 w-5" />
+                    Filters & sorting
+                  </Button>
+                </div>
+
+                {role === 'seller' && (
+                  <Button
+                    className="w-full justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-base font-semibold text-white hover:bg-green-700"
+                    onClick={handleMobileAddListing}
+                  >
+                    <Plus className="h-5 w-5" />
+                    Sell a plant
+                  </Button>
+                )}
+
+                {!isAuthenticated && (
+                  <div className="space-y-2">
+                    <Link to="/login">
+                      <Button
+                        className="w-full justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-base font-semibold text-white hover:bg-green-700"
+                        onClick={closeMobileMenu}
+                      >
+                        Login
+                      </Button>
+                    </Link>
+                    <Link to="/signup">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-center gap-2 rounded-xl border-green-200 px-4 py-3 text-base font-semibold text-green-700 hover:bg-green-50"
+                        onClick={closeMobileMenu}
+                      >
+                        Create account
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+
+                {isAdmin && (
+                  <div className="space-y-2 rounded-xl border border-green-100 bg-green-50/60 p-3">
+                    <p className="text-sm font-semibold text-green-900">Admin shortcuts</p>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 rounded-lg px-4 py-2.5 text-base font-semibold text-green-800 hover:bg-green-100"
+                      onClick={() => handleMobileNavigate('/admin/users')}
+                    >
+                      <ShieldCheck className="h-5 w-5" />
+                      Users
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 rounded-lg px-4 py-2.5 text-base font-semibold text-green-800 hover:bg-green-100"
+                      onClick={() => handleMobileNavigate('/admin/listings')}
+                    >
+                      <ListChecks className="h-5 w-5" />
+                      Listings
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 rounded-lg px-4 py-2.5 text-base font-semibold text-green-800 hover:bg-green-100"
+                      onClick={() => handleMobileNavigate('/admin/disputes')}
+                    >
+                      <Gavel className="h-5 w-5" />
+                      Disputes
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {isAuthenticated && (
+                <>
+                  <Separator className="bg-green-100" />
+                  <div className="p-4">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 rounded-xl px-4 py-3 text-base font-semibold text-red-600 hover:bg-red-50"
+                      onClick={handleMobileLogout}
+                    >
+                      <LogOut className="h-5 w-5" />
+                      Logout
+                    </Button>
+                  </div>
+                </>
+              )}
+            </SheetContent>
+          </Sheet>
           <div className="flex items-center gap-2">
             <img src={GreenThumrLogo} alt="GreenThumr Logo" className="h-12 w-12" />
             <div className="hidden sm:block">
