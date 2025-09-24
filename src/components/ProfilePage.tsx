@@ -17,6 +17,8 @@ import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { MobileActionBar } from "./MobileActionBar";
+import { Badge } from "./ui/badge";
+import { buildComplianceContext, hasCompliance } from "../utils/compliance";
 
 interface Review {
   rating: number;
@@ -389,6 +391,39 @@ export function ProfilePage() {
     );
   };
 
+  const complianceMetrics = useMemo(
+    () =>
+      userPlantListings.reduce(
+        (
+          accumulator,
+          listing,
+        ) => {
+          const context = buildComplianceContext(listing.compliance, listing.livePlantWarranty);
+          if (context.restrictedStates.length > 0) {
+            accumulator.restricted += 1;
+          }
+          if (context.requiresPhytosanitaryCertificate) {
+            accumulator.phytosanitary += 1;
+            if (!context.phytosanitaryAcknowledged) {
+              accumulator.pendingConfirmations += 1;
+            }
+          }
+          if (context.arrivalGuaranteeOffered) {
+            accumulator.arrival += 1;
+            if (!context.arrivalGuaranteeAcknowledged) {
+              accumulator.pendingConfirmations += 1;
+            }
+          }
+          if (!hasCompliance(context)) {
+            accumulator.noCompliance += 1;
+          }
+          return accumulator;
+        },
+        { restricted: 0, phytosanitary: 0, arrival: 0, pendingConfirmations: 0, noCompliance: 0 },
+      ),
+    [userPlantListings],
+  );
+
   const renderTabContent = (tabKey: string): ReactNode => {
     switch (tabKey) {
       case "seller-dashboard":
@@ -396,21 +431,65 @@ export function ProfilePage() {
           return null;
         }
         return (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Card className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Active Listings</p>
-              <p className="mt-2 text-2xl font-semibold text-green-700">{userPlantListings.length}</p>
-              <p className="text-xs text-gray-500">Manage and update your plant listings.</p>
-            </Card>
-            <Card className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Saved Leads</p>
-              <p className="mt-2 text-2xl font-semibold text-green-700">{userSavedListings.length}</p>
-              <p className="text-xs text-gray-500">Keep track of interested buyers.</p>
-            </Card>
-            <Card className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Member Since</p>
-              <p className="mt-2 text-2xl font-semibold text-green-700">{user.joinedDate || "—"}</p>
-              <p className="text-xs text-gray-500">Grow your business with Thumr.</p>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Card className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Active Listings</p>
+                <p className="mt-2 text-2xl font-semibold text-green-700">{userPlantListings.length}</p>
+                <p className="text-xs text-gray-500">Manage and update your plant listings.</p>
+              </Card>
+              <Card className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Saved Leads</p>
+                <p className="mt-2 text-2xl font-semibold text-green-700">{userSavedListings.length}</p>
+                <p className="text-xs text-gray-500">Keep track of interested buyers.</p>
+              </Card>
+              <Card className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Member Since</p>
+                <p className="mt-2 text-2xl font-semibold text-green-700">{user.joinedDate || "—"}</p>
+                <p className="text-xs text-gray-500">Grow your business with Thumr.</p>
+              </Card>
+            </div>
+            <Card className="rounded-2xl border border-green-100 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-semibold text-green-800">Compliance overview</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Track phytosanitary promises and restricted destinations across your listings.
+                  </p>
+                </div>
+                <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+                  {userPlantListings.length - complianceMetrics.noCompliance} of {userPlantListings.length} monitored
+                </Badge>
+              </div>
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span>Listings blocking states</span>
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900">
+                    {complianceMetrics.restricted}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Phytosanitary required</span>
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900">
+                    {complianceMetrics.phytosanitary}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Arrival guarantees advertised</span>
+                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-900">
+                    {complianceMetrics.arrival}
+                  </Badge>
+                </div>
+              </div>
+              {complianceMetrics.pendingConfirmations > 0 ? (
+                <p className="mt-3 text-xs text-amber-600">
+                  Follow up on {complianceMetrics.pendingConfirmations} acknowledgement(s) awaiting your confirmation.
+                </p>
+              ) : (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  All compliance acknowledgements are up to date.
+                </p>
+              )}
             </Card>
           </div>
         );

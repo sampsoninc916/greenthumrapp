@@ -33,6 +33,7 @@ import {
 } from '../ui/table';
 import { AlertTriangle, CheckCircle2, MoreHorizontal, RefreshCw, ShieldX } from 'lucide-react';
 import { formatCurrency } from '../../utils/currency';
+import { buildComplianceContext, getComplianceHighlights, hasCompliance } from '../../utils/compliance';
 
 type StatusFilter = 'all' | ListingStatus;
 type FlagFilter = 'all' | 'flagged' | 'clean';
@@ -228,6 +229,7 @@ export const AdminListingsPage = () => {
                 <TableHead>Category</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead>Submitted</TableHead>
+                <TableHead>Compliance</TableHead>
                 <TableHead>Flags</TableHead>
                 <TableHead className="pr-6 text-right">Actions</TableHead>
               </TableRow>
@@ -235,13 +237,13 @@ export const AdminListingsPage = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
                     Loading listings…
                   </TableCell>
                 </TableRow>
               ) : listings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
                     No listings match the selected filters.
                   </TableCell>
                 </TableRow>
@@ -266,6 +268,37 @@ export const AdminListingsPage = () => {
                     <TableCell>{listing.category ?? '—'}</TableCell>
                     <TableCell>{listing.price !== undefined ? formatCurrency(listing.price) : '—'}</TableCell>
                     <TableCell>{formatTimestamp(listing.submittedAt)}</TableCell>
+                    <TableCell>
+                      {(() => {
+                        const context = buildComplianceContext(
+                          listing.compliance,
+                          listing.livePlantWarranty,
+                        );
+                        const highlights = getComplianceHighlights(
+                          listing.compliance,
+                          listing.livePlantWarranty,
+                        );
+                        if (!hasCompliance(context) && !context.phytosanitaryDetails) {
+                          return <span className="text-xs text-muted-foreground">None reported</span>;
+                        }
+                        return (
+                          <div className="flex flex-col gap-1">
+                            {highlights.map((highlight) => (
+                              <Badge
+                                key={`${listing.id}-${highlight}`}
+                                variant="outline"
+                                className="w-fit border-amber-200 bg-amber-50 text-amber-900"
+                              >
+                                {highlight}
+                              </Badge>
+                            ))}
+                            {context.phytosanitaryDetails && (
+                              <p className="text-xs text-muted-foreground">{context.phytosanitaryDetails}</p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell>
                       {listing.flaggedCount ? (
                         <Badge variant="secondary" className="flex items-center gap-1 text-amber-700">

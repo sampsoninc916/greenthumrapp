@@ -15,6 +15,15 @@ export interface LivePlantWarranty {
     notes?: string;
 }
 
+export interface PlantCompliance {
+    restrictedStates: string[];
+    restrictedStatesAcknowledged: boolean;
+    requiresPhytosanitaryCertificate: boolean;
+    phytosanitaryDetails?: string;
+    phytosanitaryAcknowledged: boolean;
+    arrivalGuaranteeAcknowledged: boolean;
+}
+
 export interface Plant {
     id: string;
     name: string;
@@ -42,4 +51,5 @@ export interface Plant {
     availableZipRanges: ZipRange[];
     packagingNotes?: string;
     livePlantWarranty?: LivePlantWarranty;
+    compliance?: PlantCompliance;
 }
