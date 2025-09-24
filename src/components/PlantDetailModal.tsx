@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft, ShoppingCart, Send, Loader2 } from 'lucide-react';
+import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft, ShoppingCart, Send, Loader2, CheckCircle2, X } from 'lucide-react';
 import { Dialog, DialogContent } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -22,6 +22,7 @@ import type { MessageThread, ThreadMessage } from '../services/messages';
 import { reviewsService } from '../services/reviews';
 import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { analyticsService } from '../services/analytics';
 import {
   DELIVERY_METHOD_LABEL_LOOKUP,
   extractStateCode,
@@ -35,6 +36,13 @@ interface PlantDetailModalProps {
   onClose: () => void;
   onPlantUpdate?: (plant: Plant) => void;
   presentation?: 'modal' | 'page';
+}
+
+interface SubmittedReview {
+  id: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
 }
 
 export function PlantDetailModal({
@@ -62,6 +70,11 @@ export function PlantDetailModal({
   const [newMessageBody, setNewMessageBody] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [submittedReviews, setSubmittedReviews] = useState<SubmittedReview[]>([]);
+  const [showReviewSuccessBanner, setShowReviewSuccessBanner] = useState(false);
+  const [hasAttemptedReviewSubmit, setHasAttemptedReviewSubmit] = useState(false);
+  const [reviewErrors, setReviewErrors] = useState<{ rating?: string; comment?: string }>({});
+  const [touchedReviewFields, setTouchedReviewFields] = useState({ rating: false, comment: false });
   const messageListRef = useRef<HTMLDivElement | null>(null);
 
   // Sync plantName and currentPlant when plant prop changes
@@ -73,6 +86,11 @@ export function PlantDetailModal({
     setIsContactingSeller(false);
     setIsSendingMessage(false);
     setIsSubmittingReview(false);
+    setSubmittedReviews([]);
+    setShowReviewSuccessBanner(false);
+    setHasAttemptedReviewSubmit(false);
+    setReviewErrors({});
+    setTouchedReviewFields({ rating: false, comment: false });
   }, [plant]);
 
   // Reset all states when modal closes
@@ -89,6 +107,11 @@ export function PlantDetailModal({
     setIsContactingSeller(false);
     setIsSendingMessage(false);
     setIsSubmittingReview(false);
+    setSubmittedReviews([]);
+    setShowReviewSuccessBanner(false);
+    setHasAttemptedReviewSubmit(false);
+    setReviewErrors({});
+    setTouchedReviewFields({ rating: false, comment: false });
     onClose();
   };
 
@@ -119,6 +142,35 @@ export function PlantDetailModal({
 
     markThreadAsRead();
   }, [isConversationOpen, conversationThread]);
+
+  useEffect(() => {
+    if (
+      !hasAttemptedReviewSubmit &&
+      !touchedReviewFields.rating &&
+      !touchedReviewFields.comment
+    ) {
+      return;
+    }
+
+    setReviewErrors((previousErrors) => {
+      const nextErrors = computeReviewErrors(reviewRating, reviewComment);
+
+      if (
+        previousErrors.rating === nextErrors.rating &&
+        previousErrors.comment === nextErrors.comment
+      ) {
+        return previousErrors;
+      }
+
+      return nextErrors;
+    });
+  }, [
+    hasAttemptedReviewSubmit,
+    touchedReviewFields.rating,
+    touchedReviewFields.comment,
+    reviewRating,
+    reviewComment,
+  ]);
 
   if (!currentPlant) return null;
 
@@ -169,6 +221,71 @@ export function PlantDetailModal({
   const locationStateCode = extractStateCode(currentPlant.location);
   const prohibitedStateMessage = getProhibitedStateMessage(locationStateCode, deliveryMethods);
 
+  const formatReviewTimestamp = (timestamp: string) => {
+    const submittedAt = new Date(timestamp);
+    if (Number.isNaN(submittedAt.getTime())) {
+      return 'Just now';
+    }
+
+    const diffInMs = Date.now() - submittedAt.getTime();
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+
+    if (diffInMs < minute) {
+      return 'Just now';
+    }
+
+    if (diffInMs < hour) {
+      const minutes = Math.floor(diffInMs / minute);
+      return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+    }
+
+    if (diffInMs < day) {
+      const hours = Math.floor(diffInMs / hour);
+      return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    }
+
+    try {
+      return submittedAt.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch {
+      return submittedAt.toISOString();
+    }
+  };
+
+  const renderSubmittedReviewStars = (rating: number) => (
+    <div className="flex items-center gap-1">
+      {Array.from({ length: 5 }).map((_, index) => {
+        const isActive = index < Math.round(rating);
+        return (
+          <Star
+            key={index}
+            className={`h-4 w-4 ${
+              isActive ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'
+            }`}
+          />
+        );
+      })}
+    </div>
+  );
+
+  const computeReviewErrors = (rating: number, comment: string) => {
+    const errors: { rating?: string; comment?: string } = {};
+    if (rating <= 0) {
+      errors.rating = 'Please select a rating to continue.';
+    }
+
+    if (!comment.trim()) {
+      errors.comment = 'Please share a few words about your experience.';
+    }
+
+    return errors;
+  };
+
   const getConditionColor = (condition: string) => {
     switch (condition) {
       case 'New': return 'bg-green-100 text-green-800';
@@ -186,6 +303,9 @@ export function PlantDetailModal({
       setIsReviewScreenOpen(false);
       setReviewRating(0);
       setReviewComment("");
+      setTouchedReviewFields({ rating: false, comment: false });
+      setHasAttemptedReviewSubmit(false);
+      setReviewErrors({});
     }
   };
 
@@ -194,6 +314,9 @@ export function PlantDetailModal({
     setIsReviewScreenOpen(false);
     setReviewRating(0);
     setReviewComment("");
+    setTouchedReviewFields({ rating: false, comment: false });
+    setHasAttemptedReviewSubmit(false);
+    setReviewErrors({});
   };
 
   const handleBackCancel = () => {
@@ -366,8 +489,12 @@ export function PlantDetailModal({
       return;
     }
 
-    if (reviewRating <= 0) {
-      toast.error('Please provide a rating before submitting.');
+    setHasAttemptedReviewSubmit(true);
+
+    const validationErrors = computeReviewErrors(reviewRating, reviewComment);
+    setReviewErrors(validationErrors);
+
+    if (validationErrors.rating || validationErrors.comment) {
       return;
     }
 
@@ -388,10 +515,11 @@ export function PlantDetailModal({
     setIsSubmittingReview(true);
 
     try {
+      const trimmedComment = reviewComment.trim();
       const response = await reviewsService.submitReview({
         plantId: currentPlant.id,
         rating: reviewRating,
-        comment: reviewComment.trim(),
+        comment: trimmedComment,
       });
 
       let nextRating = typeof response.sellerRating === 'number' ? response.sellerRating : optimisticPlant.sellerRating;
@@ -415,16 +543,52 @@ export function PlantDetailModal({
 
       setCurrentPlant(updatedPlant);
       onPlantUpdate?.(updatedPlant);
+      const resolvedRating = typeof response.rating === 'number' ? response.rating : reviewRating;
+      const resolvedComment =
+        typeof response.comment === 'string' && response.comment.trim()
+          ? response.comment.trim()
+          : trimmedComment;
+      const newReview: SubmittedReview = {
+        id: response.reviewId ?? `temp-${Date.now()}`,
+        rating: resolvedRating,
+        comment: resolvedComment,
+        createdAt: new Date().toISOString(),
+      };
+
+      setSubmittedReviews((existing) => {
+        const alreadyPresent = existing.some((review) => review.id === newReview.id);
+        if (alreadyPresent) {
+          return existing.map((review) => (review.id === newReview.id ? newReview : review));
+        }
+        return [newReview, ...existing];
+      });
+      setShowReviewSuccessBanner(true);
       toast.success('Review submitted successfully.');
       setIsReviewScreenOpen(false);
       setReviewRating(0);
       setReviewComment('');
       setShowBackAlert(false);
+      setTouchedReviewFields({ rating: false, comment: false });
+      setHasAttemptedReviewSubmit(false);
+      setReviewErrors({});
     } catch (error) {
       setCurrentPlant(previousPlantState);
       onPlantUpdate?.(previousPlantState);
       const message = error instanceof Error ? error.message : 'Failed to submit review.';
-      toast.error(message);
+      analyticsService.track('review_submission_failed', {
+        plantId: currentPlant.id,
+        error: message,
+        rating: reviewRating,
+        commentLength: reviewComment.trim().length,
+      });
+      toast.error(message, {
+        action: {
+          label: 'Retry',
+          onClick: () => {
+            void handleReviewSubmit();
+          },
+        },
+      });
     } finally {
       setIsSubmittingReview(false);
     }
@@ -676,6 +840,53 @@ export function PlantDetailModal({
         </div>
       </div>
 
+      {submittedReviews.length > 0 && (
+        <div className="space-y-3 rounded-lg border border-green-100 bg-green-50/70 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-base font-semibold text-green-700">Your community review</h3>
+              <p className="text-xs text-green-800/80">
+                Shared instantly with growers exploring this seller.
+              </p>
+            </div>
+            <Badge variant="outline" className="border-green-200 bg-white text-green-700">
+              New
+            </Badge>
+          </div>
+          <div className="space-y-3">
+            {submittedReviews.map((review) => {
+              const ratingLabel = Number.isInteger(review.rating)
+                ? review.rating.toString()
+                : review.rating.toFixed(1);
+              return (
+                <div
+                  key={review.id}
+                  className="space-y-3 rounded-md bg-white/80 p-4 shadow-sm shadow-green-100"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-green-700">
+                      {renderSubmittedReviewStars(review.rating)}
+                      <span className="text-sm font-semibold">{ratingLabel}</span>
+                      <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+                        You
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {formatReviewTimestamp(review.createdAt)}
+                    </span>
+                  </div>
+                  {review.comment && (
+                    <p className="text-sm leading-relaxed text-gray-700 whitespace-pre-line">
+                      {review.comment}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <Separator />
 
       <div className="space-y-4 text-sm">
@@ -813,83 +1024,155 @@ export function PlantDetailModal({
     <div className="flex flex-col md:gap-10 gap-6 pt-4">
       <section className="flex flex-col gap-6">{renderImageGallery()}</section>
       <section className="flex flex-col gap-6">
+        {showReviewSuccessBanner && (
+          <Alert className="border-green-200 bg-green-50 text-green-900">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-600" aria-hidden="true" />
+              <div className="flex-1">
+                <AlertTitle>Thanks for your review!</AlertTitle>
+                <AlertDescription>
+                  Your feedback is now visible to future buyers below.
+                </AlertDescription>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReviewSuccessBanner(false)}
+                className="rounded-full p-1 text-green-700 transition hover:bg-green-100"
+                aria-label="Dismiss review success"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </Alert>
+        )}
         {renderDetailSections({ showBackButton: !isPagePresentation })}
       </section>
     </div>
   );
 
-  const renderReviewBody = () => (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-1 items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleReviewBack(reviewComment, reviewRating)}
-            className="h-10 w-10 rounded-full border border-border"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            <span className="sr-only">Back to listing</span>
-          </Button>
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold leading-tight">Share your experience</h2>
-            <p className="text-sm text-muted-foreground">
-              Tell other growers about your experience with {currentPlant?.seller ?? 'this seller'}.
-            </p>
-          </div>
-        </div>
-        <StarRating value={reviewRating} onChange={setReviewRating} />
-      </div>
+  const isReviewValid = reviewRating > 0 && reviewComment.trim().length > 0;
 
-      {showBackAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
-            <div className="mb-4 text-center">
-              <p className="mb-2 text-lg font-semibold">Are you sure you want to go back?</p>
-              <p className="text-sm text-gray-600">Some changes may be unsaved.</p>
-            </div>
-            <div className="flex justify-center gap-3">
-              <Button className="bg-green-600 text-white hover:bg-green-700" onClick={handleBackConfirm}>
-                Yes
-              </Button>
+  const handleReviewRatingChange = (value: number) => {
+    if (!touchedReviewFields.rating) {
+      setTouchedReviewFields((prev) => ({ ...prev, rating: true }));
+    }
+    setReviewRating(value);
+  };
+
+  const handleReviewCommentChange = (value: string) => {
+    if (!touchedReviewFields.comment) {
+      setTouchedReviewFields((prev) => ({ ...prev, comment: true }));
+    }
+    setReviewComment(value);
+  };
+
+  const renderReviewBody = () => {
+    const missingRating = reviewRating <= 0;
+    const missingComment = reviewComment.trim().length === 0;
+    const showRatingError = Boolean(reviewErrors.rating) && (hasAttemptedReviewSubmit || touchedReviewFields.rating);
+    const showCommentError = Boolean(reviewErrors.comment) && (hasAttemptedReviewSubmit || touchedReviewFields.comment);
+
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-1 items-center gap-3">
               <Button
-                variant="outline"
-                className="border-green-600 text-green-600 hover:bg-green-50"
-                onClick={handleBackCancel}
+                variant="ghost"
+                size="icon"
+                onClick={() => handleReviewBack(reviewComment, reviewRating)}
+                className="h-10 w-10 rounded-full border border-border"
               >
-                No
+                <ArrowLeft className="h-5 w-5" />
+                <span className="sr-only">Back to listing</span>
               </Button>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold leading-tight">Share your experience</h2>
+                <p className="text-sm text-muted-foreground">
+                  Tell other growers about your experience with {currentPlant?.seller ?? 'this seller'}.
+                </p>
+              </div>
+            </div>
+            <StarRating value={reviewRating} onChange={handleReviewRatingChange} />
+          </div>
+          {showRatingError ? (
+            <p className="text-sm text-red-600">{reviewErrors.rating}</p>
+          ) : missingRating ? (
+            <p className="text-sm text-muted-foreground">Select a rating to submit your review.</p>
+          ) : null}
+        </div>
+
+        {showBackAlert && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
+              <div className="mb-4 text-center">
+                <p className="mb-2 text-lg font-semibold">Are you sure you want to go back?</p>
+                <p className="text-sm text-gray-600">Some changes may be unsaved.</p>
+              </div>
+              <div className="flex justify-center gap-3">
+                <Button className="bg-green-600 text-white hover:bg-green-700" onClick={handleBackConfirm}>
+                  Yes
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-green-600 text-green-600 hover:bg-green-50"
+                  onClick={handleBackCancel}
+                >
+                  No
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="space-y-4">
-        <Textarea
-          id="message"
-          rows={8}
-          value={reviewComment}
-          onChange={(e) => setReviewComment(e.target.value)}
-          placeholder="Share details about your experience with this seller..."
-          className="min-h-[200px]"
-        />
-        <Button
-          className="w-full rounded-full bg-green-600 py-3 text-base hover:bg-green-700"
-          onClick={handleReviewSubmit}
-          disabled={isSubmittingReview || reviewRating <= 0}
-        >
-          {isSubmittingReview ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Submitting...
-            </>
-          ) : (
-            'Submit review'
-          )}
-        </Button>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Textarea
+              id="message"
+              rows={8}
+              value={reviewComment}
+              onChange={(e) => handleReviewCommentChange(e.target.value)}
+              onBlur={() => setTouchedReviewFields((prev) => ({ ...prev, comment: true }))}
+              placeholder="Share details about your experience with this seller..."
+              className="min-h-[200px]"
+              aria-invalid={showCommentError}
+              aria-describedby={showCommentError ? 'review-comment-error' : undefined}
+            />
+            {showCommentError ? (
+              <p id="review-comment-error" className="text-sm text-red-600">
+                {reviewErrors.comment}
+              </p>
+            ) : missingComment ? (
+              <p className="text-sm text-muted-foreground">
+                Share a few details so other shoppers can learn from your experience.
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <Button
+              className="w-full rounded-full bg-green-600 py-3 text-base hover:bg-green-700"
+              onClick={handleReviewSubmit}
+              disabled={isSubmittingReview || !isReviewValid}
+            >
+              {isSubmittingReview ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit review'
+              )}
+            </Button>
+            {!isReviewValid && !isSubmittingReview ? (
+              <p className="text-center text-xs text-muted-foreground">
+                Add both a star rating and a comment to enable submit.
+              </p>
+            ) : null}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderPageShell = (body: ReactNode, title: string, onBack: () => void) => (
     <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col bg-background">
