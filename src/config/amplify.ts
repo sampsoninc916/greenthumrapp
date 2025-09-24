@@ -69,47 +69,6 @@ export const SECURITY_CONFIG = {
   PASSWORD_REQUIRE_SPECIAL: true,
 } as const;
 
-const baseAmplifyConfig = {
-  Auth: {
-    Cognito: {
-      userPoolId: import.meta.env.VITE_AWS_USER_POOL_ID,
-      userPoolClientId: import.meta.env.VITE_AWS_USER_POOL_CLIENT_ID,
-      region: import.meta.env.VITE_AWS_REGION
-    }
-  }
-};
-
-// Validate required environment variables
-if (!import.meta.env.VITE_AWS_USER_POOL_ID || !import.meta.env.VITE_AWS_USER_POOL_CLIENT_ID) {
-  console.error('Missing required AWS Cognito configuration. Please check your .env file.');
-}
-
-// Configure Amplify once at app initialization
-export const configureAmplify = () => {
-  const cognitoConfig: Record<string, unknown> = {
-    ...baseAmplifyConfig.Auth.Cognito
-  };
-
-  if (SECURITY_CONFIG.SESSION_STRATEGY === 'amplify-cookie') {
-    const { COOKIE_STORAGE } = SECURITY_CONFIG;
-    const cookieStorage = new CookieStorage({
-      path: COOKIE_STORAGE.path,
-      sameSite: COOKIE_STORAGE.sameSite,
-      secure: COOKIE_STORAGE.secure,
-      ...(COOKIE_STORAGE.domain ? { domain: COOKIE_STORAGE.domain } : {}),
-      ...(typeof COOKIE_STORAGE.expires === 'number' ? { expires: COOKIE_STORAGE.expires } : {}),
-    });
-
-    cognitoConfig.storage = cookieStorage;
-  }
-
-  Amplify.configure({
-    Auth: {
-      Cognito: cognitoConfig as any
-    }
-  });
-};
-
 const appendPath = (base: string | undefined, path: string): string => {
   if (!base) {
     return '';
@@ -139,25 +98,113 @@ export const API_ENDPOINTS = {
   ADMIN_AUDIT: import.meta.env.VITE_API_ADMIN_AUDIT,
 };
 
-// Validate API endpoints
-const requiredEndpoints = [
-  'VITE_API_PLANTS_READ',
-  'VITE_API_PLANTS_WRITE',
-  'VITE_API_USERS_READ',
-  'VITE_API_USERS_WRITE',
-  'VITE_API_MESSAGES_THREADS',
-  'VITE_API_MESSAGES_SEND',
-  'VITE_API_MESSAGES_MARK_READ',
-  'VITE_API_MESSAGES_UNREAD_COUNT',
-  'VITE_API_REVIEWS_SUBMIT',
-  'VITE_API_REVIEWS_SUMMARY',
-  'VITE_API_ADMIN_USERS',
-  'VITE_API_ADMIN_LISTINGS',
-  'VITE_API_ADMIN_DISPUTES',
-  'VITE_API_ADMIN_AUDIT'
-];
+const baseAmplifyConfig = {
+  Auth: {
+    Cognito: {
+      userPoolId: import.meta.env.VITE_AWS_USER_POOL_ID,
+      userPoolClientId: import.meta.env.VITE_AWS_USER_POOL_CLIENT_ID,
+      region: import.meta.env.VITE_AWS_REGION
+    }
+  }
+};
 
-const missingEndpoints = requiredEndpoints.filter(key => !(import.meta.env as any)[key]);
-if (missingEndpoints.length > 0) {
-  console.error(`Missing required API endpoints: ${missingEndpoints.join(', ')}. Please check your .env file.`);
-}
+const REQUIRED_COGNITO_ENV_KEYS = [
+  'VITE_AWS_USER_POOL_ID',
+  'VITE_AWS_USER_POOL_CLIENT_ID',
+  'VITE_AWS_REGION',
+] as const;
+
+const REQUIRED_API_ENDPOINT_KEYS = [
+  'PLANTS_READ',
+  'PLANTS_WRITE',
+  'PLANTS_UPDATE',
+  'UPLOAD_SCAN',
+  'USERS_READ',
+  'USERS_WRITE',
+  'USERS_UPDATE',
+  'MESSAGES_THREADS',
+  'MESSAGES_SEND',
+  'MESSAGES_MARK_READ',
+  'MESSAGES_UNREAD_COUNT',
+  'REVIEWS_SUBMIT',
+  'REVIEWS_SUMMARY',
+  'ADMIN_USERS',
+  'ADMIN_LISTINGS',
+  'ADMIN_DISPUTES',
+  'ADMIN_AUDIT',
+] as const satisfies Array<keyof typeof API_ENDPOINTS>;
+
+const API_ENV_KEY_MAP: Record<(typeof REQUIRED_API_ENDPOINT_KEYS)[number], string> = {
+  PLANTS_READ: 'VITE_API_PLANTS_READ',
+  PLANTS_WRITE: 'VITE_API_PLANTS_WRITE',
+  PLANTS_UPDATE: 'VITE_API_PLANTS_UPDATE',
+  UPLOAD_SCAN: 'VITE_API_UPLOAD_SCAN',
+  USERS_READ: 'VITE_API_USERS_READ',
+  USERS_WRITE: 'VITE_API_USERS_WRITE',
+  USERS_UPDATE: 'VITE_API_USERS_UPDATE',
+  MESSAGES_THREADS: 'VITE_API_MESSAGES_THREADS',
+  MESSAGES_SEND: 'VITE_API_MESSAGES_SEND',
+  MESSAGES_MARK_READ: 'VITE_API_MESSAGES_MARK_READ',
+  MESSAGES_UNREAD_COUNT: 'VITE_API_MESSAGES_UNREAD_COUNT',
+  REVIEWS_SUBMIT: 'VITE_API_REVIEWS_SUBMIT',
+  REVIEWS_SUMMARY: 'VITE_API_REVIEWS_SUMMARY',
+  ADMIN_USERS: 'VITE_API_ADMIN_USERS',
+  ADMIN_LISTINGS: 'VITE_API_ADMIN_LISTINGS',
+  ADMIN_DISPUTES: 'VITE_API_ADMIN_DISPUTES',
+  ADMIN_AUDIT: 'VITE_API_ADMIN_AUDIT',
+};
+
+const validateRequiredConfig = () => {
+  const envSource = import.meta.env as Record<string, string | undefined>;
+
+  const missingCognito = REQUIRED_COGNITO_ENV_KEYS.filter((key) => {
+    const value = envSource[key];
+    return typeof value !== 'string' || value.trim().length === 0;
+  });
+
+  if (missingCognito.length > 0) {
+    const message = `Missing required AWS Cognito configuration values: ${missingCognito.join(', ')}`;
+    console.error(message);
+    throw new Error(message);
+  }
+
+  const missingEndpoints = (REQUIRED_API_ENDPOINT_KEYS as ReadonlyArray<keyof typeof API_ENDPOINTS>).filter((key) => {
+    const value = API_ENDPOINTS[key];
+    return typeof value !== 'string' || value.trim().length === 0;
+  });
+
+  if (missingEndpoints.length > 0) {
+    const envKeys = missingEndpoints.map((key) => API_ENV_KEY_MAP[key]);
+    const message = `Missing required API endpoints: ${envKeys.join(', ')}`;
+    console.error(message);
+    throw new Error(message);
+  }
+};
+
+// Configure Amplify once at app initialization
+export const configureAmplify = () => {
+  validateRequiredConfig();
+
+  const cognitoConfig: Record<string, unknown> = {
+    ...baseAmplifyConfig.Auth.Cognito
+  };
+
+  if (SECURITY_CONFIG.SESSION_STRATEGY === 'amplify-cookie') {
+    const { COOKIE_STORAGE } = SECURITY_CONFIG;
+    const cookieStorage = new CookieStorage({
+      path: COOKIE_STORAGE.path,
+      sameSite: COOKIE_STORAGE.sameSite,
+      secure: COOKIE_STORAGE.secure,
+      ...(COOKIE_STORAGE.domain ? { domain: COOKIE_STORAGE.domain } : {}),
+      ...(typeof COOKIE_STORAGE.expires === 'number' ? { expires: COOKIE_STORAGE.expires } : {}),
+    });
+
+    cognitoConfig.storage = cookieStorage;
+  }
+
+  Amplify.configure({
+    Auth: {
+      Cognito: cognitoConfig as any
+    }
+  });
+};

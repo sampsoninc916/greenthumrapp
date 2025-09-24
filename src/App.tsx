@@ -16,6 +16,8 @@ import { API_ENDPOINTS } from './config/amplify';
 import { apiClient } from './services/auth';
 import { normalizePlantRecord } from './utils/plants';
 import { useIsMobile } from './hooks/useIsMobile';
+import { toast } from 'sonner';
+import { isPlantResponseDto, type PlantResponseDto } from './interfaces/dtos';
 
 const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,14 +42,27 @@ const App = () => {
     try {
       setLoading(true);
       // Public endpoint - no authentication required for viewing plants
-      const response = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const { data } = await apiClient.get<PlantResponseDto[]>(API_ENDPOINTS.PLANTS_READ, {
+        requiresAuth: false,
+      });
+
+      if (!data) {
+        setPlantsData([]);
+        setError(false);
+        return;
       }
-      const result = await response.json();
-      const normalizedPlants: Plant[] = Array.isArray(result)
-        ? result.map((item: any) => normalizePlantRecord(item))
-        : [];
+
+      const validPlants = data.filter((item): item is PlantResponseDto => isPlantResponseDto(item));
+
+      if (validPlants.length !== data.length) {
+        console.warn('Filtered invalid plant payload entries', {
+          total: data.length,
+          valid: validPlants.length,
+        });
+        toast.error('Some plant listings could not be loaded. Please refresh to try again.');
+      }
+
+      const normalizedPlants: Plant[] = validPlants.map((item) => normalizePlantRecord(item));
       setPlantsData(normalizedPlants);
       setError(false);
     } catch (err) {

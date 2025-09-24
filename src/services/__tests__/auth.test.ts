@@ -133,18 +133,17 @@ describe("AuthService user scoping", () => {
       userId: "user-123",
     });
 
-    const response = await authService.authenticatedFetch("/api/users/me", {
+    const { data } = await authService.authenticatedFetch<Record<string, unknown>>("/api/users/me", {
       requiresAuth: true,
       method: "GET",
     });
-    const body = await response.json();
 
-    expect(body).toEqual({
+    expect(data).toEqual({
       userId: "user-123",
       fullName: "Test User",
       description: "Bio",
     });
-    expect((body as any).email).toBeUndefined();
+    expect((data as any)?.email).toBeUndefined();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

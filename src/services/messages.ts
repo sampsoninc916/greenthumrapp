@@ -1,51 +1,6 @@
 import { API_ENDPOINTS } from '../config/amplify';
 import { apiClient } from './auth';
 
-interface ApiErrorPayload {
-  message?: string;
-  [key: string]: unknown;
-}
-
-const safeJson = async <T>(response: Response): Promise<T | null> => {
-  try {
-    const text = await response.clone().text();
-    if (!text) {
-      return null;
-    }
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  }
-};
-
-const extractErrorMessage = async (response: Response, fallback: string): Promise<string> => {
-  const data = await safeJson<ApiErrorPayload>(response);
-  if (data?.message && typeof data.message === 'string') {
-    return data.message;
-  }
-  return fallback;
-};
-
-const assertSuccess = async (response: Response, fallback: string) => {
-  if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, fallback));
-  }
-};
-
-const parseJsonResponse = async <T>(response: Response, fallback: string): Promise<T | undefined> => {
-  await assertSuccess(response, fallback);
-
-  if (response.status === 204) {
-    return undefined;
-  }
-
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return undefined;
-  }
-};
-
 const ensureEndpoint = (endpoint: string | undefined, key: keyof typeof API_ENDPOINTS) => {
   if (!endpoint) {
     throw new Error(`Missing API endpoint configuration for ${key}`);
@@ -89,8 +44,7 @@ export interface SendMessagePayload {
 
 const startThread = async (payload: StartThreadPayload): Promise<MessageThread> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.MESSAGES_THREADS, 'MESSAGES_THREADS');
-  const response = await apiClient.post(endpoint, payload, true);
-  const data = await parseJsonResponse<MessageThread>(response, 'Unable to start conversation.');
+  const { data } = await apiClient.post<MessageThread>(endpoint, payload, { requiresAuth: true });
 
   if (!data) {
     throw new Error('Empty response received when starting conversation.');
@@ -104,28 +58,25 @@ const startThread = async (payload: StartThreadPayload): Promise<MessageThread> 
 
 const sendMessage = async (payload: SendMessagePayload): Promise<ThreadMessage> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.MESSAGES_SEND, 'MESSAGES_SEND');
-  const response = await apiClient.post(endpoint, payload, true);
-  const message = await parseJsonResponse<ThreadMessage>(response, 'Unable to send message.');
+  const { data } = await apiClient.post<ThreadMessage>(endpoint, payload, { requiresAuth: true });
 
-  if (!message) {
+  if (!data) {
     throw new Error('Empty response received after sending message.');
   }
 
-  return message;
+  return data;
 };
 
 const markThreadRead = async (threadId: string): Promise<void> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.MESSAGES_MARK_READ, 'MESSAGES_MARK_READ');
-  const response = await apiClient.post(endpoint, { threadId }, true);
-  await assertSuccess(response, 'Unable to update conversation status.');
+  await apiClient.post<null>(endpoint, { threadId }, { requiresAuth: true, parseAs: 'none' });
 };
 
 const getUnreadCount = async (): Promise<number> => {
   const endpoint = ensureEndpoint(API_ENDPOINTS.MESSAGES_UNREAD_COUNT, 'MESSAGES_UNREAD_COUNT');
-  const response = await apiClient.get(endpoint, true);
-  const payload = await parseJsonResponse<{ unreadCount?: number }>(response, 'Unable to fetch unread conversations.');
+  const { data } = await apiClient.get<{ unreadCount?: number }>(endpoint, { requiresAuth: true });
 
-  return payload?.unreadCount ?? 0;
+  return data?.unreadCount ?? 0;
 };
 
 export const messagesService = {
