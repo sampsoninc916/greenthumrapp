@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Separator } from "./ui/separator";
+import { Checkbox } from "./ui/checkbox";
+import { Label } from "./ui/label";
+import { Switch } from "./ui/switch";
 // TODO: Replace with actual Google and Apple icons or buttons
 import { Chrome } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
@@ -21,6 +24,12 @@ export function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [phone, setPhone] = useState("");
   const [selectedRole, setSelectedRole] = useState<"buyer" | "seller" | "">("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [termsAcceptedAt, setTermsAcceptedAt] = useState<string | null>(null);
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  const [privacyAcceptedAt, setPrivacyAcceptedAt] = useState<string | null>(null);
+  const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(false);
+  const [marketingSmsOptIn, setMarketingSmsOptIn] = useState(false);
   const navigate = useNavigate();
   const { signup, confirmSignup, login, isAuthenticated } = useAuth();
 
@@ -69,6 +78,11 @@ export function SignupPage() {
       return;
     }
 
+    if (!acceptTerms || !acceptPrivacy) {
+      setError('You must accept the Terms of Service and Privacy Policy to create an account.');
+      return;
+    }
+
     if (!validateEmail(email)) {
       setError('Please enter a valid email address');
       return;
@@ -111,7 +125,17 @@ export function SignupPage() {
       if (token) {
         await authService.authenticatedFetch(API_ENDPOINTS.USERS_WRITE, {
           method: 'POST',
-          body: JSON.stringify({ phone, role: selectedRole || undefined }),
+          body: JSON.stringify({
+            phone,
+            role: selectedRole || undefined,
+            consents: {
+              termsAcceptedAt: termsAcceptedAt ?? new Date().toISOString(),
+              privacyAcceptedAt: privacyAcceptedAt ?? new Date().toISOString(),
+              marketingEmailOptIn,
+              marketingSmsOptIn,
+              marketingGlobalUnsubscribed: false,
+            },
+          }),
           requiresAuth: true
         });
       }
@@ -221,40 +245,125 @@ export function SignupPage() {
                 </button>
               </div>
             </div>
-
-            {/* Continue Button */}
-            <Button
-              className="w-full h-12 rounded-lg text-white"
-              style={{ backgroundColor: '#36AE46', fontWeight: 500 }}
-              onClick={handleSignup}
-              disabled={isLoading}
-            >
-              {isLoading ? 'Creating Account...' : 'Continue'}
-            </Button>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            {success && (
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <p className="text-green-600 text-sm">Signup successful! Please enter the confirmation code sent to your email.</p>
-                <Input
-                  type="text"
-                  placeholder="Enter confirmation code"
-                  className="w-1/4 h-12 bg-gray-100 border-0 rounded-lg px-4"
-                  style={{ backgroundColor: '#f3f3f5' }}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                />
-                <Button
-                  className="w-1/4 h-12 rounded-lg text-white"
-                  style={{ backgroundColor: '#36AE46', fontWeight: 500 }}
-                  onClick={handleConfirm}
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Confirming...' : 'Confirm'}
-                </Button>
-              </div>
-            )}
-            {!success && confirm && <p className="text-center text-green-600 text-sm">Account created successfully! Redirecting...</p>}
           </div>
+
+          <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="accept-terms"
+                checked={acceptTerms}
+                onCheckedChange={(checked) => {
+                  const value = checked === true;
+                  setAcceptTerms(value);
+                  setTermsAcceptedAt(value ? new Date().toISOString() : null);
+                  if (value && acceptPrivacy) {
+                    setError("");
+                  }
+                }}
+              />
+              <Label htmlFor="accept-terms" className="text-sm font-medium text-gray-700">
+                I agree to the{" "}
+                <Link to="/terms" className="text-green-700 underline">
+                  Terms of Service
+                </Link>
+              </Label>
+            </div>
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="accept-privacy"
+                checked={acceptPrivacy}
+                onCheckedChange={(checked) => {
+                  const value = checked === true;
+                  setAcceptPrivacy(value);
+                  setPrivacyAcceptedAt(value ? new Date().toISOString() : null);
+                  if (value && acceptTerms) {
+                    setError("");
+                  }
+                }}
+              />
+              <Label htmlFor="accept-privacy" className="text-sm font-medium text-gray-700">
+                I have read and accept the{" "}
+                <Link to="/privacy" className="text-green-700 underline">
+                  Privacy Policy
+                </Link>
+              </Label>
+            </div>
+            <Separator />
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Optional communications
+              </p>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <Label htmlFor="marketing-email" className="text-sm font-medium text-gray-700">
+                    Email updates
+                  </Label>
+                  <p className="text-xs text-gray-500">
+                    Get seasonal tips, product launches, and curated plant guides.
+                  </p>
+                </div>
+                <Switch
+                  id="marketing-email"
+                  checked={marketingEmailOptIn}
+                  onCheckedChange={(checked) => setMarketingEmailOptIn(checked)}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <Label htmlFor="marketing-sms" className="text-sm font-medium text-gray-700">
+                    Text messages
+                  </Label>
+                  <p className="text-xs text-gray-500">
+                    Receive limited-time offers and alerts about plants on your wishlist.
+                  </p>
+                </div>
+                <Switch
+                  id="marketing-sms"
+                  checked={marketingSmsOptIn}
+                  onCheckedChange={(checked) => setMarketingSmsOptIn(checked)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Continue Button */}
+          <Button
+            className="w-full h-12 rounded-lg text-white"
+            style={{ backgroundColor: '#36AE46', fontWeight: 500 }}
+            onClick={handleSignup}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Creating Account...' : 'Continue'}
+          </Button>
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {success && (
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <p className="text-green-600 text-sm">
+                Signup successful! Please enter the confirmation code sent to your email.
+              </p>
+              <Input
+                type="text"
+                placeholder="Enter confirmation code"
+                className="w-1/4 h-12 bg-gray-100 border-0 rounded-lg px-4"
+                style={{ backgroundColor: '#f3f3f5' }}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+              <Button
+                className="w-1/4 h-12 rounded-lg text-white"
+                style={{ backgroundColor: '#36AE46', fontWeight: 500 }}
+                onClick={handleConfirm}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Confirming...' : 'Confirm'}
+              </Button>
+            </div>
+          )}
+          {!success && confirm && (
+            <p className="text-center text-green-600 text-sm">
+              Account created successfully! Redirecting...
+            </p>
+          )}
 
           {/* Divider */}
           <div className="flex items-center space-x-4">
