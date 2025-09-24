@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
-import { Image } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { ArrowLeft, ArrowRight, Check, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Switch } from './ui/switch';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
@@ -20,15 +23,94 @@ import {
   requiresZipRanges,
 } from '../constants/fulfillmentRules';
 
+type FieldName =
+  | 'images'
+  | 'plantName'
+  | 'price'
+  | 'location'
+  | 'category'
+  | 'species'
+  | 'usdaZone'
+  | 'lightPreference'
+  | 'soilPreference'
+  | 'condition'
+  | 'deliveryMethods'
+  | 'zipRange'
+  | 'warrantyDuration';
+
+type FieldErrorState = Partial<Record<FieldName, string>>;
+
+interface PlantImageFile {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const MAX_FILE_SIZE_MB = Math.round(MAX_FILE_SIZE_BYTES / (1024 * 1024));
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+] as const;
+const ALLOWED_IMAGE_TYPE_SET = new Set<string>(ALLOWED_IMAGE_TYPES);
+const IMAGE_TYPES_LABEL = 'JPG, PNG, GIF, WebP, or HEIC';
+
+const STEPS = [
+  {
+    key: 'photos',
+    title: 'Photos',
+    description: 'Show the plant clearly and highlight unique details.',
+  },
+  {
+    key: 'details',
+    title: 'Plant details',
+    description: 'Share the basics, growing habits, and care information.',
+  },
+  {
+    key: 'fulfillment',
+    title: 'Fulfillment',
+    description: 'Choose how buyers receive the plant and set expectations.',
+  },
+] as const;
+
 interface CreateNewPlantModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        const base64 = reader.result.split(',')[1];
+        if (base64) {
+          resolve(base64);
+          return;
+        }
+      }
+      reject(new Error('Failed to read file.'));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file.'));
+    reader.readAsDataURL(file);
+  });
+};
+
+const createImageId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProps) {
-  const [files, setFiles] = useState<File[]>([]);
+  const [images, setImages] = useState<PlantImageFile[]>([]);
   const [plantName, setPlantName] = useState('');
-  const [price, setPrice] = useState(0);
+  const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
   const [category, setCategory] = useState('');
   const [species, setSpecies] = useState('');
@@ -43,18 +125,19 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
   const [height, setHeight] = useState('');
   const [deliveryMethods, setDeliveryMethods] = useState<DeliveryMethod[]>([]);
   const [zipRangeInput, setZipRangeInput] = useState('');
-  const [zipRangeError, setZipRangeError] = useState<string | null>(null);
   const [packagingNotes, setPackagingNotes] = useState('');
   const [warrantyOffered, setWarrantyOffered] = useState(false);
   const [warrantyDuration, setWarrantyDuration] = useState('');
   const [warrantyNotes, setWarrantyNotes] = useState('');
-  const [deliveryValidationAttempted, setDeliveryValidationAttempted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorState>({});
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const maxFileSize = 50 * 1024 * 1024; // 50MB
-  
+  const [currentStep, setCurrentStep] = useState(0);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const { isAuthenticated, role } = useAuth();
-  const isSeller = role === "seller";
+  const isSeller = role === 'seller';
   const navigate = useNavigate();
   const deliveryMethodOrder = useMemo(
     () => DELIVERY_METHOD_OPTIONS.map((option) => option.value),
@@ -79,33 +162,71 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
     [locationStateCode, deliveryMethods],
   );
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated && isOpen) {
-    onClose();
-    navigate('/login', { state: { from: { pathname: '/', action: 'add-listing' } } });
-    return null;
-  }
+  const clearFieldError = useCallback((field: FieldName) => {
+    setFieldErrors((prev) => {
+      if (!(field in prev)) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
 
-  if (isOpen && isAuthenticated && !isSeller) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-lg">
-          <div className="space-y-4 py-4">
-            <h2 className="text-lg font-semibold text-green-700">Seller access required</h2>
-            <p className="text-sm text-gray-600">
-              Only seller accounts can create new plant listings. Update your account settings to become a seller and start
-              listing your plants for sale.
-            </p>
-            <div className="flex justify-end">
-              <Button onClick={onClose} className="bg-green-600 hover:bg-green-700 text-white">
-                Close
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  const setFieldError = useCallback((field: FieldName, message: string) => {
+    setFieldErrors((prev) => {
+      if (prev[field] === message) {
+        return prev;
+      }
+      return { ...prev, [field]: message };
+    });
+  }, []);
+
+  const resetForm = useCallback(() => {
+    setImages((current) => {
+      current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      return [];
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setPlantName('');
+    setPrice('');
+    setLocation('');
+    setCategory('');
+    setSpecies('');
+    setCultivar('');
+    setUsdaZone('');
+    setLightPreference('');
+    setSoilPreference('');
+    setCondition('');
+    setDescription('');
+    setCareInstructions('');
+    setPotSize('');
+    setHeight('');
+    setDeliveryMethods([]);
+    setZipRangeInput('');
+    setPackagingNotes('');
+    setWarrantyOffered(false);
+    setWarrantyDuration('');
+    setWarrantyNotes('');
+    setFieldErrors({});
+    setSubmissionError(null);
+    setIsSubmitting(false);
+    setCurrentStep(0);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      resetForm();
+    }
+  }, [isOpen, resetForm]);
+
+  useEffect(() => {
+    if (!shippingSelected) {
+      clearFieldError('zipRange');
+    }
+  }, [shippingSelected, clearFieldError]);
 
   const toggleDeliveryMethod = (method: DeliveryMethod, checked: boolean) => {
     setDeliveryMethods((prev) => {
@@ -117,132 +238,306 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
       }
       return deliveryMethodOrder.filter((value) => next.has(value));
     });
+    clearFieldError('deliveryMethods');
   };
 
-  const handleZipRangeBlur = () => {
-    if (!zipRangeInput) {
-      setZipRangeError(null);
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    if (selectedFiles.length === 0) {
       return;
     }
 
-    const { invalidEntries } = parseZipRanges(zipRangeInput);
-    if (invalidEntries.length > 0) {
-      setZipRangeError(`Invalid ZIP entries: ${invalidEntries.join(', ')}`);
-    } else {
-      setZipRangeError(null);
+    const issues: string[] = [];
+    const nextImages: PlantImageFile[] = [];
+
+    selectedFiles.forEach((file) => {
+      if (!ALLOWED_IMAGE_TYPE_SET.has(file.type)) {
+        issues.push(`"${file.name}" must be an ${IMAGE_TYPES_LABEL} file.`);
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        issues.push(`"${file.name}" is larger than ${MAX_FILE_SIZE_MB}MB.`);
+        return;
+      }
+      nextImages.push({
+        id: createImageId(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+      });
+    });
+
+    if (nextImages.length > 0) {
+      setImages((prev) => [...prev, ...nextImages]);
+      clearFieldError('images');
+    }
+
+    if (issues.length > 0) {
+      setFieldError('images', issues.join(' '));
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-          if (reader.result) {
-          // reader.result will be a Data URL (e.g., "data:image/png;base64,iVBORw...")
-                  // You might want to remove the "data:MIME_type;base64," prefix if only the base64 string is needed.
-                  const base64String = reader.result.toString().split(',')[1];
-                  resolve(base64String);
-              } else {
-                  reject(new Error("Failed to read file."));
-              }
-          };
-          reader.onerror = (error) => reject(error);
-          reader.readAsDataURL(file);
+  const removeImage = (id: string) => {
+    setImages((current) => {
+      const removed = current.find((image) => image.id === id);
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      return current.filter((image) => image.id !== id);
     });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const selectedFiles = Array.from(e.target.files);
-    // Filter files over 50MB
-    const validFiles = selectedFiles.filter(file => file.size <= maxFileSize);
-    setFiles(prevFiles => [...prevFiles, ...validFiles]);
+  const moveImage = (id: string, direction: 'left' | 'right') => {
+    setImages((current) => {
+      const index = current.findIndex((image) => image.id === id);
+      if (index === -1) {
+        return current;
+      }
+      const newIndex = direction === 'left' ? index - 1 : index + 1;
+      if (newIndex < 0 || newIndex >= current.length) {
+        return current;
+      }
+      const updated = [...current];
+      const [item] = updated.splice(index, 1);
+      updated.splice(newIndex, 0, item);
+      return updated;
+    });
+  };
+
+  const validateField = useCallback(
+    (field: FieldName): boolean => {
+      const zonePattern = /^(?:[1-9]|1[0-3])[A-D]?$/i;
+
+      switch (field) {
+        case 'images': {
+          if (images.length === 0) {
+            setFieldError('images', 'Add at least one photo to your listing.');
+            return false;
+          }
+          break;
+        }
+        case 'plantName': {
+          if (!plantName.trim()) {
+            setFieldError('plantName', 'Enter a plant name.');
+            return false;
+          }
+          break;
+        }
+        case 'price': {
+          if (!price.trim()) {
+            setFieldError('price', 'Set a price for the plant.');
+            return false;
+          }
+          const numericPrice = Number(price);
+          if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+            setFieldError('price', 'Enter a valid price greater than zero.');
+            return false;
+          }
+          break;
+        }
+        case 'location': {
+          if (!location.trim()) {
+            setFieldError('location', 'Provide the city and state for the listing.');
+            return false;
+          }
+          break;
+        }
+        case 'category': {
+          if (!category.trim()) {
+            setFieldError('category', 'Choose a category for the plant.');
+            return false;
+          }
+          break;
+        }
+        case 'species': {
+          if (!species.trim()) {
+            setFieldError('species', 'Add the plant species.');
+            return false;
+          }
+          break;
+        }
+        case 'usdaZone': {
+          const normalized = usdaZone.trim().toUpperCase();
+          if (!normalized) {
+            setFieldError('usdaZone', 'Enter the USDA hardiness zone.');
+            return false;
+          }
+          if (!zonePattern.test(normalized)) {
+            setFieldError('usdaZone', 'Use zones 1-13 with an optional A-D suffix (e.g., 6B).');
+            return false;
+          }
+          break;
+        }
+        case 'lightPreference': {
+          if (!lightPreference.trim()) {
+            setFieldError('lightPreference', 'Describe the preferred light conditions.');
+            return false;
+          }
+          break;
+        }
+        case 'soilPreference': {
+          if (!soilPreference.trim()) {
+            setFieldError('soilPreference', 'Describe the preferred soil.');
+            return false;
+          }
+          break;
+        }
+        case 'condition': {
+          if (!condition.trim()) {
+            setFieldError('condition', 'Share the plant’s current condition.');
+            return false;
+          }
+          break;
+        }
+        case 'deliveryMethods': {
+          if (deliveryMethods.length === 0) {
+            setFieldError('deliveryMethods', 'Select at least one fulfillment option.');
+            return false;
+          }
+          if (inlineCombinationError) {
+            setFieldError('deliveryMethods', inlineCombinationError);
+            return false;
+          }
+          break;
+        }
+        case 'zipRange': {
+          if (!shippingSelected) {
+            clearFieldError('zipRange');
+            return true;
+          }
+          if (!zipRangeInput.trim()) {
+            setFieldError('zipRange', 'Add ZIP codes or ranges for shipping coverage.');
+            return false;
+          }
+          const { invalidEntries } = parseZipRanges(zipRangeInput);
+          if (invalidEntries.length > 0) {
+            setFieldError('zipRange', `Invalid ZIP entries: ${invalidEntries.join(', ')}`);
+            return false;
+          }
+          break;
+        }
+        case 'warrantyDuration': {
+          if (!warrantyOffered) {
+            clearFieldError('warrantyDuration');
+            return true;
+          }
+          if (!warrantyDuration.trim()) {
+            setFieldError('warrantyDuration', 'Enter the number of days your warranty lasts.');
+            return false;
+          }
+          const parsedDuration = Number(warrantyDuration);
+          if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+            setFieldError('warrantyDuration', 'Warranty duration must be a positive number of days.');
+            return false;
+          }
+          break;
+        }
+        default:
+          break;
+      }
+
+      clearFieldError(field);
+      return true;
+    },
+    [
+      images,
+      plantName,
+      price,
+      location,
+      category,
+      species,
+      usdaZone,
+      lightPreference,
+      soilPreference,
+      condition,
+      deliveryMethods,
+      inlineCombinationError,
+      shippingSelected,
+      zipRangeInput,
+      warrantyOffered,
+      warrantyDuration,
+      clearFieldError,
+      setFieldError,
+    ],
+  );
+
+  const stepFieldMap: Record<number, FieldName[]> = {
+    0: ['images'],
+    1: [
+      'plantName',
+      'price',
+      'location',
+      'category',
+      'species',
+      'usdaZone',
+      'lightPreference',
+      'soilPreference',
+      'condition',
+    ],
+    2: ['deliveryMethods', 'zipRange', 'warrantyDuration'],
+  };
+
+  const validateStep = (stepIndex: number) => {
+    const fields = stepFieldMap[stepIndex] ?? [];
+    let isValid = true;
+    fields.forEach((field) => {
+      const fieldValid = validateField(field);
+      if (!fieldValid) {
+        isValid = false;
+      }
+    });
+    return isValid;
+  };
+
+  const handleNextStep = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));
+    }
+  };
+
+  const handlePreviousStep = () => {
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  };
+
+  const handleZipRangeBlur = () => {
+    validateField('zipRange');
+  };
+
+  const handleWarrantyToggle = (checked: boolean) => {
+    setWarrantyOffered(checked);
+    if (!checked) {
+      setWarrantyDuration('');
+      clearFieldError('warrantyDuration');
+    }
   };
 
   const handleSubmit = async () => {
-    if (!isSeller) {
-      setError('Only seller accounts can create listings');
-      return;
-    }
-
-    setDeliveryValidationAttempted(true);
-
-    if (!plantName || !price || !location || !category || !condition) {
-      setError('Please fill in all required fields');
-      return;
+    const stepsToValidate = [0, 1, 2];
+    for (const stepIndex of stepsToValidate) {
+      if (!validateStep(stepIndex)) {
+        setCurrentStep(stepIndex);
+        return;
+      }
     }
 
     const trimmedSpecies = species.trim();
     const trimmedCultivar = cultivar.trim();
-    const trimmedUsdaZoneInput = usdaZone.trim();
-    const normalizedUsdaZone = trimmedUsdaZoneInput.toUpperCase();
+    const normalizedUsdaZone = usdaZone.trim().toUpperCase();
     const trimmedLightPreference = lightPreference.trim();
     const trimmedSoilPreference = soilPreference.trim();
-    const zonePattern = /^(?:[1-9]|1[0-3])[A-D]?$/i;
-
-    if (!trimmedSpecies) {
-      setError('Please enter the plant species.');
-      return;
-    }
-
-    if (!normalizedUsdaZone) {
-      setError('Please enter the USDA hardiness zone.');
-      return;
-    }
-
-    if (!zonePattern.test(normalizedUsdaZone)) {
-      setError('Enter a valid USDA hardiness zone (1-13 with optional letter A-D).');
-      return;
-    }
-
-    if (!trimmedLightPreference) {
-      setError('Please describe the preferred light conditions.');
-      return;
-    }
-
-    if (!trimmedSoilPreference) {
-      setError('Please describe the preferred soil conditions.');
-      return;
-    }
-
-    if (files.length === 0) {
-      setError('Please upload at least one image');
-      return;
-    }
-
-    const combinationValidationError = getDeliveryCombinationError(deliveryMethods);
-    if (combinationValidationError) {
-      setError(combinationValidationError);
-      return;
-    }
-
-    const { ranges, invalidEntries } = parseZipRanges(zipRangeInput);
-
-    if (invalidEntries.length > 0) {
-      setZipRangeError(`Invalid ZIP entries: ${invalidEntries.join(', ')}`);
-      setError('Please correct the ZIP ranges before submitting.');
-      return;
-    }
-
-    setZipRangeError(null);
-
-    if (shippingSelected && ranges.length === 0) {
-      setError('Add at least one ZIP code or range when shipping is enabled.');
-      return;
-    }
-
-    if (prohibitedStateMessage) {
-      setError(prohibitedStateMessage);
-      return;
-    }
+    const trimmedCondition = condition.trim();
+    const trimmedDescription = description.trim();
+    const trimmedCareInstructions = careInstructions.trim();
+    const normalizedPackagingNotes = packagingNotes.trim();
+    const normalizedPrice = Number(price);
+    const { ranges } = parseZipRanges(zipRangeInput);
 
     let warrantyDurationValue: number | undefined;
     if (warrantyOffered) {
       warrantyDurationValue = Number(warrantyDuration);
-      if (!Number.isFinite(warrantyDurationValue) || warrantyDurationValue <= 0) {
-        setError('Enter a valid warranty duration in days.');
-        return;
-      }
     }
 
     const normalizedWarranty: LivePlantWarranty = warrantyOffered
@@ -256,316 +551,434 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
           notes: warrantyNotes.trim() || undefined,
         };
 
-    const normalizedPackagingNotes = packagingNotes.trim();
-
     setIsSubmitting(true);
-    setError('');
+    setSubmissionError(null);
 
     try {
       const base64files = await Promise.all(
-        files.map(async (file) => {
-          const base64 = await fileToBase64(file);
+        images.map(async (image) => {
+          const fileBase64 = await fileToBase64(image.file);
           return {
-            fileName: file.name,
-            fileContentType: file.type || "application/octet-stream",
-            fileBase64: base64,
+            fileName: image.file.name,
+            fileContentType: image.file.type || 'application/octet-stream',
+            fileBase64,
           };
         }),
       );
+
       const plantData = {
-        name: plantName,
-        price,
-        location,
-        category,
+        name: plantName.trim(),
+        price: normalizedPrice,
+        location: location.trim(),
+        category: category.trim(),
         species: trimmedSpecies,
         cultivar: trimmedCultivar || undefined,
         usdaZone: normalizedUsdaZone,
         lightPreference: trimmedLightPreference,
         soilPreference: trimmedSoilPreference,
-        condition,
-        description,
-        careInstructions,
-        potSize,
-        height,
+        condition: trimmedCondition,
+        description: trimmedDescription,
+        careInstructions: trimmedCareInstructions,
+        potSize: potSize.trim(),
+        height: height.trim(),
         deliveryMethods,
         availableZipRanges: ranges,
         packagingNotes: normalizedPackagingNotes || undefined,
         livePlantWarranty: normalizedWarranty,
       };
+
       const bodyJSON = {
         plant: plantData,
         files: base64files,
         role: role ?? undefined,
       };
 
-      // Use authenticated fetch for creating listings
       const token = await authService.getToken();
       if (!token) {
         throw new Error('Authentication required');
       }
 
-      const res = await authService.authenticatedFetch(
-        API_ENDPOINTS.PLANTS_WRITE,
-        {
-          method: 'POST',
-          body: JSON.stringify(bodyJSON),
-          requiresAuth: true
-        }
-      );
-      
+      const res = await authService.authenticatedFetch(API_ENDPOINTS.PLANTS_WRITE, {
+        method: 'POST',
+        body: JSON.stringify(bodyJSON),
+        requiresAuth: true,
+      });
+
       if (!res.ok) {
-        throw new Error(`Failed to create listing: ${res.status}`);
+        let message = `Failed to create listing: ${res.status}`;
+        try {
+          const errorBody = await res.json();
+          if (errorBody && typeof errorBody.message === 'string') {
+            message = errorBody.message;
+          }
+        } catch (error) {
+          console.warn('Unable to parse error response', error);
+        }
+        throw new Error(message);
       }
-      
+
       const data = await res.json();
       console.log('Plant created:', data);
-      
-      // Reset form and close modal
-      setFiles([]);
-      setPlantName('');
-      setPrice(0);
-      setLocation('');
-      setCategory('');
-      setSpecies('');
-      setCultivar('');
-      setUsdaZone('');
-      setLightPreference('');
-      setSoilPreference('');
-      setCondition('');
-      setDescription('');
-      setCareInstructions('');
-      setPotSize('');
-      setHeight('');
-      setDeliveryMethods([]);
-      setZipRangeInput('');
-      setZipRangeError(null);
-      setPackagingNotes('');
-      setWarrantyOffered(false);
-      setWarrantyDuration('');
-      setWarrantyNotes('');
-      setDeliveryValidationAttempted(false);
 
+      toast.success('Your plant listing is live!');
+      resetForm();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create listing');
-      console.error('Error creating listing:', err);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create listing';
+      setSubmissionError(message);
+      toast.error(message);
+      console.error('Error creating listing:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-screen md:h-[83vh] overflow-y-auto flex flex-col justify-start">
-        <DialogHeader className="flex flex-row items-center justify-between p-0">
-          <div />
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={onClose}
-            className="hidden h-6 w-8 p-0"
-          >
-            {/* <X className="h-4 w-4" /> */}
-          </Button>
-        </DialogHeader>
-
-        <div className="grid md:grid-cols-1 gap-6 flex-1">
-          {/* Images */}
-          {/* <div className="space-y-4">
-            <div className="aspect-square overflow-hidden rounded-lg bg-gray-100">
-              <ImageWithFallback
-                src={plant.images[currentImageIndex]}
-                alt={plant.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            
-            {plant.images.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto">
-                {plant.images.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 ${
-                      index === currentImageIndex 
-                        ? 'border-green-500' 
-                        : 'border-gray-200'
-                    }`}
-                  >
-                    <ImageWithFallback
-                      src={image}
-                      alt={`${plant.name} ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div> */}
-
-          {/* Details */}
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 0:
+        return (
           <div className="space-y-6">
-            {/* Header */}
-            <div className="space-y-2">
-              <Image className="w-full m-auto h-64" />
-              <div className="flex items-center justify-between rounded-md">
-                  <label htmlFor="file_input" className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center">Upload Image(s)</label>
-                  <input
-                    type="file"
-                    id="file_input"
-                    className="hidden"
-                    placeholder=""
-                    multiple
-                    onChange={handleFileChange}
-                  />
+            <section className="space-y-3">
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-green-700">Photos</h3>
+                <p className="text-sm text-muted-foreground">
+                  Upload at least one clear, well-lit image. Use the arrows to reorder the cover photo.
+                </p>
               </div>
-              <div className="flex items-center justify-center">
-                <span className="text-black">{files && files.length > 0 && files.length === 1 ? `${files.length} image uploaded` : `${files.length} images uploaded`}</span>
+              <div className="rounded-md border border-dashed border-green-200 bg-green-50/50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-12 items-center justify-center rounded-md bg-green-100 text-green-700">
+                      <ImageIcon className="size-6" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Add plant photos</p>
+                      <p className="text-xs text-muted-foreground">
+                        {images.length === 0 ? 'No photos added yet.' : `${images.length} photo${images.length > 1 ? 's' : ''} ready to upload.`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={ALLOWED_IMAGE_TYPES.join(',')}
+                      multiple
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                      Choose images
+                    </Button>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Accepts {IMAGE_TYPES_LABEL} up to {MAX_FILE_SIZE_MB}MB each.
+                </p>
+                {fieldErrors.images && <p className="mt-2 text-xs text-destructive">{fieldErrors.images}</p>}
               </div>
-              
-              {/* <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-green-600">
-                  ${plant.price}
-                </span>
-                <Badge className={getConditionColor(plant.condition)} variant="secondary">
-                  {plant.condition}
-                </Badge>
-                <Badge variant="outline">{plant.category}</Badge>
-              </div>
+            </section>
 
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <MapPin className="h-4 w-4" />
-                <span>{plant.location}</span>
-              </div> */}
-            </div>
-
-            {/* <Separator /> */}
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Plant Name"
-                onChange={(e) => setPlantName(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="number"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Price"
-                onChange={(e) => setPrice(Number(e.target.value))}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Location"
-                onChange={(e) => setLocation(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <select
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">Select Category</option>
-                <option value="Houseplants">Houseplants</option>
-                <option value="Flowers">Flowers</option>
-                <option value="Herbs">Herbs</option>
-                <option value="Succulents">Succulents</option>
-                <option value="Trees">Trees</option>
-                <option value="Seeds">Seeds</option>
-                <option value="Tools & Supplies">Tools & Supplies</option>
-              </select>
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Species (e.g., Monstera deliciosa)"
-                onChange={(e) => setSpecies(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Cultivar (optional)"
-                onChange={(e) => setCultivar(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="USDA Hardiness Zone (e.g., 9B)"
-                onChange={(e) => setUsdaZone(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Light Preference (e.g., Bright indirect light)"
-                onChange={(e) => setLightPreference(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Soil Preference (e.g., Well-draining mix)"
-                onChange={(e) => setSoilPreference(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Condition"
-                onChange={(e) => setCondition(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Description"
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Care Instructions"
-                onChange={(e) => setCareInstructions(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Pot Size"
-                onChange={(e) => setPotSize(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <input
-                type="text"
-                className="w-full inline-block p-2 border border-gray-300 rounded-md"
-                placeholder="Height"
-                onChange={(e) => setHeight(e.target.value)}
-              />
-            </div>
-            <div className="space-y-4 rounded-md border border-gray-200 bg-white/70 p-4">
+            {images.length > 0 && (
+              <section className="space-y-3">
+                <h4 className="text-sm font-semibold text-gray-900">Preview &amp; order</h4>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {images.map((image, index) => (
+                    <div key={image.id} className="overflow-hidden rounded-md border bg-white shadow-sm">
+                      <img
+                        src={image.previewUrl}
+                        alt={image.file.name}
+                        className="h-48 w-full object-cover"
+                      />
+                      <div className="space-y-1 border-t px-3 py-2 text-xs">
+                        <p className="font-medium text-gray-900">Photo {index + 1}</p>
+                        <p className="truncate text-muted-foreground">{image.file.name}</p>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="size-8"
+                            onClick={() => moveImage(image.id, 'left')}
+                            disabled={index === 0}
+                            aria-label="Move photo earlier"
+                          >
+                            <ArrowLeft className="size-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="size-8"
+                            onClick={() => moveImage(image.id, 'right')}
+                            disabled={index === images.length - 1}
+                            aria-label="Move photo later"
+                          >
+                            <ArrowRight className="size-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="size-8 text-red-600 hover:bg-red-50"
+                            onClick={() => removeImage(image.id)}
+                            aria-label="Remove photo"
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        );
+      case 1:
+        return (
+          <div className="space-y-8">
+            <section className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-green-700">Delivery &amp; Fulfillment</h3>
-                <p className="text-sm text-gray-600">
-                  Choose the methods that were approved with fulfillment and add the supporting coverage
-                  details.
+                <h3 className="text-base font-semibold text-green-700">Listing basics</h3>
+                <p className="text-sm text-muted-foreground">
+                  Help buyers understand what you’re selling with clear, searchable details.
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="plantName">Plant name*</Label>
+                  <Input
+                    id="plantName"
+                    value={plantName}
+                    onChange={(event) => {
+                      setPlantName(event.target.value);
+                      clearFieldError('plantName');
+                    }}
+                    onBlur={() => validateField('plantName')}
+                    placeholder="Variegated Monstera"
+                    aria-invalid={fieldErrors.plantName ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Use a descriptive name shoppers will recognize.</p>
+                  {fieldErrors.plantName && <p className="text-xs text-destructive">{fieldErrors.plantName}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="price">Price (USD)*</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={price}
+                    onChange={(event) => {
+                      setPrice(event.target.value);
+                      clearFieldError('price');
+                    }}
+                    onBlur={() => validateField('price')}
+                    placeholder="45.00"
+                    aria-invalid={fieldErrors.price ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Set the total price buyers will pay.</p>
+                  {fieldErrors.price && <p className="text-xs text-destructive">{fieldErrors.price}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location*</Label>
+                  <Input
+                    id="location"
+                    value={location}
+                    onChange={(event) => {
+                      setLocation(event.target.value);
+                      clearFieldError('location');
+                    }}
+                    onBlur={() => validateField('location')}
+                    placeholder="Portland, OR"
+                    aria-invalid={fieldErrors.location ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Share where the plant is available for pickup or shipping.</p>
+                  {fieldErrors.location && <p className="text-xs text-destructive">{fieldErrors.location}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category*</Label>
+                  <Input
+                    id="category"
+                    value={category}
+                    onChange={(event) => {
+                      setCategory(event.target.value);
+                      clearFieldError('category');
+                    }}
+                    onBlur={() => validateField('category')}
+                    placeholder="Houseplants"
+                    aria-invalid={fieldErrors.category ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Group the plant so buyers can filter by interest.</p>
+                  {fieldErrors.category && <p className="text-xs text-destructive">{fieldErrors.category}</p>}
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-green-700">Plant identity</h3>
+                <p className="text-sm text-muted-foreground">
+                  Include botanical information so collectors know exactly what they’re getting.
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="species">Species*</Label>
+                  <Input
+                    id="species"
+                    value={species}
+                    onChange={(event) => {
+                      setSpecies(event.target.value);
+                      clearFieldError('species');
+                    }}
+                    onBlur={() => validateField('species')}
+                    placeholder="Monstera deliciosa"
+                    aria-invalid={fieldErrors.species ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Use the botanical species name.</p>
+                  {fieldErrors.species && <p className="text-xs text-destructive">{fieldErrors.species}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cultivar">Cultivar (optional)</Label>
+                  <Input
+                    id="cultivar"
+                    value={cultivar}
+                    onChange={(event) => setCultivar(event.target.value)}
+                    placeholder="Albo Variegata"
+                  />
+                  <p className="text-xs text-muted-foreground">Add a cultivar or variety if applicable.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="usdaZone">USDA hardiness zone*</Label>
+                  <Input
+                    id="usdaZone"
+                    value={usdaZone}
+                    onChange={(event) => {
+                      setUsdaZone(event.target.value.toUpperCase());
+                      clearFieldError('usdaZone');
+                    }}
+                    onBlur={() => validateField('usdaZone')}
+                    placeholder="6B"
+                    aria-invalid={fieldErrors.usdaZone ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Format 1-13 with an optional letter (e.g., 9A, 5B).</p>
+                  {fieldErrors.usdaZone && <p className="text-xs text-destructive">{fieldErrors.usdaZone}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="potSize">Pot size (optional)</Label>
+                  <Input
+                    id="potSize"
+                    value={potSize}
+                    onChange={(event) => setPotSize(event.target.value)}
+                    placeholder='6" pot'
+                  />
+                  <p className="text-xs text-muted-foreground">Share pot diameter or container details.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="height">Approximate height (optional)</Label>
+                  <Input
+                    id="height"
+                    value={height}
+                    onChange={(event) => setHeight(event.target.value)}
+                    placeholder="18 inches"
+                  />
+                  <p className="text-xs text-muted-foreground">Give a sense of size or growth stage.</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-green-700">Care &amp; condition</h3>
+                <p className="text-sm text-muted-foreground">
+                  Buyers rely on care notes to keep the plant thriving once it arrives.
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="lightPreference">Light preference*</Label>
+                  <Input
+                    id="lightPreference"
+                    value={lightPreference}
+                    onChange={(event) => {
+                      setLightPreference(event.target.value);
+                      clearFieldError('lightPreference');
+                    }}
+                    onBlur={() => validateField('lightPreference')}
+                    placeholder="Bright indirect light"
+                    aria-invalid={fieldErrors.lightPreference ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Explain the lighting that keeps the plant happiest.</p>
+                  {fieldErrors.lightPreference && <p className="text-xs text-destructive">{fieldErrors.lightPreference}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="soilPreference">Soil preference*</Label>
+                  <Input
+                    id="soilPreference"
+                    value={soilPreference}
+                    onChange={(event) => {
+                      setSoilPreference(event.target.value);
+                      clearFieldError('soilPreference');
+                    }}
+                    onBlur={() => validateField('soilPreference')}
+                    placeholder="Well-draining aroid mix"
+                    aria-invalid={fieldErrors.soilPreference ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Share the soil blend or medium that works best.</p>
+                  {fieldErrors.soilPreference && <p className="text-xs text-destructive">{fieldErrors.soilPreference}</p>}
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="condition">Condition*</Label>
+                  <Input
+                    id="condition"
+                    value={condition}
+                    onChange={(event) => {
+                      setCondition(event.target.value);
+                      clearFieldError('condition');
+                    }}
+                    onBlur={() => validateField('condition')}
+                    placeholder="Rooted cutting with new growth"
+                    aria-invalid={fieldErrors.condition ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Describe the plant’s health, maturity, or propagation state.</p>
+                  {fieldErrors.condition && <p className="text-xs text-destructive">{fieldErrors.condition}</p>}
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="description">Description (optional)</Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="Note variegation, growth habits, or special care tips."
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground">Share what makes this plant unique.</p>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="careInstructions">Care instructions (optional)</Label>
+                  <Textarea
+                    id="careInstructions"
+                    value={careInstructions}
+                    onChange={(event) => setCareInstructions(event.target.value)}
+                    placeholder="Water weekly when top inch is dry; enjoys 60% humidity."
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground">Provide watering, humidity, or seasonal care recommendations.</p>
+                </div>
+              </div>
+            </section>
+          </div>
+        );
+      case 2:
+        return (
+          <div className="space-y-8">
+            <section className="space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-green-700">Delivery &amp; fulfillment</h3>
+                <p className="text-sm text-muted-foreground">
+                  Select every option you can reliably support and add any required coverage details.
                 </p>
               </div>
               <div className="space-y-3">
@@ -575,195 +988,235 @@ export function CreateNewPlantModal({ isOpen, onClose }: CreateNewPlantModalProp
                     <label
                       key={option.value}
                       htmlFor={checkboxId}
-                      className="flex items-start gap-3 rounded-md border border-gray-200/70 bg-white/60 p-3 shadow-sm"
+                      className="flex items-start gap-3 rounded-md border border-gray-200/80 bg-white/70 p-3 shadow-sm"
                     >
                       <Checkbox
                         id={checkboxId}
                         checked={deliveryMethods.includes(option.value)}
-                        onCheckedChange={(checked) =>
-                          toggleDeliveryMethod(option.value, checked === true)
-                        }
+                        onCheckedChange={(checked) => {
+                          toggleDeliveryMethod(option.value, checked === true);
+                        }}
                       />
                       <div className="space-y-1">
                         <p className="text-sm font-semibold text-gray-900">{option.label}</p>
-                        <p className="text-xs text-gray-600">{option.description}</p>
+                        <p className="text-xs text-muted-foreground">{option.description}</p>
                       </div>
                     </label>
                   );
                 })}
               </div>
-              {inlineCombinationError && (deliveryValidationAttempted || deliveryMethods.length > 0) && (
-                <p className="text-sm text-red-600">{inlineCombinationError}</p>
+              {fieldErrors.deliveryMethods && (
+                <p className="text-xs text-destructive">{fieldErrors.deliveryMethods}</p>
               )}
-              {(shippingSelected || zipRangeInput) && (
-                <div className="space-y-2">
-                  <Label htmlFor="zipRangeInput">Available ZIP ranges</Label>
-                  <textarea
-                    id="zipRangeInput"
-                    value={zipRangeInput}
-                    onChange={(e) => setZipRangeInput(e.target.value)}
-                    onBlur={handleZipRangeBlur}
-                    rows={shippingSelected ? 3 : 2}
-                    className="w-full rounded-md border border-gray-300 p-2 text-sm"
-                    placeholder="94107 or 75000-75200"
-                  />
-                  <p className="text-xs text-gray-500">
-                    {shippingSelected
-                      ? 'Enter one ZIP or ZIP range per line (##### or #####-#####).'
-                      : 'ZIP ranges are optional unless shipping is enabled.'}
+              {!fieldErrors.deliveryMethods && inlineCombinationError && (
+                <p className="text-xs text-destructive">{inlineCombinationError}</p>
+              )}
+            </section>
+
+            {(shippingSelected || zipRangeInput) && (
+              <section className="space-y-2">
+                <Label htmlFor="zipRangeInput">Available ZIP ranges</Label>
+                <Textarea
+                  id="zipRangeInput"
+                  value={zipRangeInput}
+                  onChange={(event) => {
+                    setZipRangeInput(event.target.value);
+                    clearFieldError('zipRange');
+                  }}
+                  onBlur={handleZipRangeBlur}
+                  rows={shippingSelected ? 4 : 3}
+                  placeholder="94107 or 75000-75200"
+                  aria-invalid={fieldErrors.zipRange ? true : undefined}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter one ZIP or ZIP range per line (##### or #####-#####).
+                </p>
+                {fieldErrors.zipRange && <p className="text-xs text-destructive">{fieldErrors.zipRange}</p>}
+              </section>
+            )}
+
+            <section className="space-y-2">
+              <Label htmlFor="packagingNotes">Packaging notes (optional)</Label>
+              <Textarea
+                id="packagingNotes"
+                value={packagingNotes}
+                onChange={(event) => setPackagingNotes(event.target.value)}
+                rows={3}
+                placeholder="Share insulation materials, heat packs, or handling steps."
+              />
+              <p className="text-xs text-muted-foreground">Let buyers know how you protect plants in transit.</p>
+            </section>
+
+            <section className="space-y-4 rounded-md border border-gray-200/80 bg-white/70 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900">Live plant warranty</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Offer peace of mind with a live arrival guarantee when you can support it.
                   </p>
-                  {zipRangeError && <p className="text-xs text-red-600">{zipRangeError}</p>}
+                </div>
+                <Switch
+                  id="warrantySwitch"
+                  checked={warrantyOffered}
+                  onCheckedChange={handleWarrantyToggle}
+                  aria-label="Toggle live plant warranty"
+                />
+              </div>
+              {warrantyOffered && (
+                <div className="space-y-2">
+                  <Label htmlFor="warrantyDuration">Warranty duration (days)*</Label>
+                  <Input
+                    id="warrantyDuration"
+                    type="number"
+                    min="1"
+                    value={warrantyDuration}
+                    onChange={(event) => {
+                      setWarrantyDuration(event.target.value);
+                      clearFieldError('warrantyDuration');
+                    }}
+                    onBlur={() => validateField('warrantyDuration')}
+                    placeholder="30"
+                    aria-invalid={fieldErrors.warrantyDuration ? true : undefined}
+                  />
+                  <p className="text-xs text-muted-foreground">Specify how long buyers have to report issues.</p>
+                  {fieldErrors.warrantyDuration && (
+                    <p className="text-xs text-destructive">{fieldErrors.warrantyDuration}</p>
+                  )}
                 </div>
               )}
               <div className="space-y-2">
-                <Label htmlFor="packagingNotes">Packaging notes</Label>
-                <textarea
-                  id="packagingNotes"
-                  value={packagingNotes}
-                  onChange={(e) => setPackagingNotes(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
-                  placeholder="Share insulation materials, heat packs, or handling steps."
+                <Label htmlFor="warrantyNotes">{warrantyOffered ? 'Warranty details' : 'Warranty notes (optional)'}</Label>
+                <Textarea
+                  id="warrantyNotes"
+                  value={warrantyNotes}
+                  onChange={(event) => setWarrantyNotes(event.target.value)}
+                  rows={warrantyOffered ? 3 : 2}
+                  placeholder={
+                    warrantyOffered
+                      ? 'Outline care requirements, what is covered, and claim steps.'
+                      : 'Add optional disclaimers about live arrival guarantees.'
+                  }
                 />
+                <p className="text-xs text-muted-foreground">Clarify what you cover and how buyers can reach you.</p>
               </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="warrantySwitch">Offer live-plant warranty</Label>
-                  <Switch
-                    id="warrantySwitch"
-                    checked={warrantyOffered}
-                    onCheckedChange={(checked) => {
-                      setWarrantyOffered(checked);
-                      if (!checked) {
-                        setWarrantyDuration('');
-                      }
-                    }}
-                  />
-                </div>
-                {warrantyOffered && (
-                  <div className="space-y-1">
-                    <Label htmlFor="warrantyDuration">Warranty duration (days)</Label>
-                    <input
-                      id="warrantyDuration"
-                      type="number"
-                      min={1}
-                      value={warrantyDuration}
-                      onChange={(e) => setWarrantyDuration(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 p-2 text-sm"
-                      placeholder="30"
-                    />
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <Label htmlFor="warrantyNotes">
-                    {warrantyOffered ? 'Warranty details' : 'Warranty notes (optional)'}
-                  </Label>
-                  <textarea
-                    id="warrantyNotes"
-                    value={warrantyNotes}
-                    onChange={(e) => setWarrantyNotes(e.target.value)}
-                    rows={warrantyOffered ? 3 : 2}
-                    className="w-full rounded-md border border-gray-300 p-2 text-sm"
-                    placeholder={
-                      warrantyOffered
-                        ? 'Outline care requirements, what is covered, and claim steps.'
-                        : 'Add optional disclaimers about live arrival guarantees.'
-                    }
-                  />
-                </div>
-              </div>
-              {prohibitedStateMessage && (
-                <Alert variant="destructive">
-                  <AlertTitle>Shipping restriction</AlertTitle>
-                  <AlertDescription>{prohibitedStateMessage}</AlertDescription>
-                </Alert>
-              )}
-            </div>
-            <div className="flex w-full items-center justify-between rounded-md">
-              <button
-                className="inline w-full text-sm font-medium text-white bg-green-600 rounded-md p-2 text-center disabled:opacity-50"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-              >
-                <span>{isSubmitting ? 'Creating...' : 'Add Plant'}</span>
-              </button>
-            </div>
-            {error && (
-              <div className="text-red-500 text-sm mt-2">{error}</div>
+            </section>
+
+            {prohibitedStateMessage && (
+              <Alert variant="destructive">
+                <AlertTitle>Shipping restriction</AlertTitle>
+                <AlertDescription>{prohibitedStateMessage}</AlertDescription>
+              </Alert>
             )}
-            {/* Seller Info */}
-            {/* <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar>
-                  <AvatarImage src={plant.sellerAvatar} />
-                  <AvatarFallback>
-                    <User className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{plant.seller}</p>
-                  <div className="flex items-center gap-1">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    <span className="text-sm text-muted-foreground">
-                      {plant.sellerRating} rating
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  if (!isAuthenticated && isOpen) {
+    onClose();
+    navigate('/login', { state: { from: { pathname: '/', action: 'add-listing' } } });
+    return null;
+  }
+
+  if (isOpen && isAuthenticated && !isSeller) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader className="gap-3">
+            <DialogTitle className="text-lg font-semibold text-green-700">Seller access required</DialogTitle>
+            <DialogDescription className="text-sm text-gray-600">
+              Only seller accounts can create new plant listings. Update your account settings to become a seller and start
+              listing your plants for sale.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button onClick={onClose} className="bg-green-600 text-white hover:bg-green-700">
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden">
+        <DialogHeader className="gap-1 text-left">
+          <DialogTitle>Create a new plant listing</DialogTitle>
+          <DialogDescription>
+            Upload photos, share plant details, and set fulfillment preferences to publish your listing.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-6 overflow-hidden">
+          <nav aria-label="Listing steps" className="rounded-md border bg-white/70 p-4">
+            <ol className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              {STEPS.map((step, index) => {
+                const isCompleted = index < currentStep;
+                const isActive = index === currentStep;
+                return (
+                  <li key={step.key} className="flex items-start gap-3 md:flex-1 md:items-center">
+                    <span
+                      className={
+                        'flex size-8 items-center justify-center rounded-full text-sm font-semibold transition-colors ' +
+                        (isActive
+                          ? 'bg-green-600 text-white'
+                          : isCompleted
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-200 text-gray-600')
+                      }
+                    >
+                      {isCompleted ? <Check className="size-4" /> : index + 1}
                     </span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-green-600" />
-                <span className="text-sm text-green-600">Verified Seller</span>
-              </div>
-            </div> */}
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-gray-900">{step.title}</p>
+                      <p className="text-xs text-muted-foreground">{step.description}</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
 
-            {/* <Separator /> */}
-
-            {/* Plant Details */}
-            {/* <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Pot Size:</span>
-                  <p className="font-medium">{plant.potSize}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Height:</span>
-                  <p className="font-medium">{plant.height}</p>
-                </div>
-              </div>
-
-              <div>
-                <span className="text-muted-foreground">Description:</span>
-                <p className="mt-1">{plant.description}</p>
-              </div>
-
-              <div>
-                <span className="text-muted-foreground">Care Instructions:</span>
-                <p className="mt-1">{plant.careInstructions}</p>
-              </div>
-            </div> */}
-
-            {/* <Separator /> */}
-
-            {/* Actions */}
-            {/* <div className="space-y-3">
-              <Button className="w-full bg-green-600 hover:bg-green-700">
-                Contact Seller
-              </Button>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline">
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Message
-                </Button>
-                <Button variant="outline">
-                  Make Offer
-                </Button>
-              </div>
+          <form
+            className="flex flex-1 flex-col overflow-hidden"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSubmit();
+            }}
+          >
+            <div className="flex-1 overflow-y-auto pr-1">
+              <div className="space-y-8 pb-6">{renderStepContent()}</div>
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              Posted {plant.postedDate}
-            </p> */}
-          </div>
+            {submissionError && (
+              <p className="mt-4 text-sm text-destructive">{submissionError}</p>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+              <p className="text-sm text-muted-foreground">Step {currentStep + 1} of {STEPS.length}</p>
+              <div className="flex flex-wrap gap-3">
+                {currentStep > 0 && (
+                  <Button type="button" variant="outline" onClick={handlePreviousStep}>
+                    Back
+                  </Button>
+                )}
+                {currentStep < STEPS.length - 1 && (
+                  <Button type="button" onClick={handleNextStep}>
+                    Next
+                  </Button>
+                )}
+                {currentStep === STEPS.length - 1 && (
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating…' : 'Create listing'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </form>
         </div>
       </DialogContent>
     </Dialog>
