@@ -110,15 +110,23 @@ export const configureAmplify = () => {
   });
 };
 
+const appendPath = (base: string | undefined, path: string): string => {
+  if (!base) {
+    return '';
+  }
+  const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  return `${normalizedBase}${path}`;
+};
+
 // API endpoints configuration
 export const API_ENDPOINTS = {
   PLANTS_READ: import.meta.env.VITE_API_PLANTS_READ,
   PLANTS_WRITE: import.meta.env.VITE_API_PLANTS_WRITE,
   PLANTS_UPDATE: import.meta.env.VITE_API_PLANTS_UPDATE,
   UPLOAD_SCAN: import.meta.env.VITE_API_UPLOAD_SCAN,
-  USERS_READ: import.meta.env.VITE_API_USERS_READ,
+  USERS_READ: appendPath(import.meta.env.VITE_API_USERS_READ, '/me'),
   USERS_WRITE: import.meta.env.VITE_API_USERS_WRITE,
-  USERS_UPDATE: import.meta.env.VITE_API_USERS_UPDATE,
+  USERS_UPDATE: appendPath(import.meta.env.VITE_API_USERS_UPDATE, '/me'),
   MESSAGES_THREADS: import.meta.env.VITE_API_MESSAGES_THREADS,
   MESSAGES_SEND: import.meta.env.VITE_API_MESSAGES_SEND,
   MESSAGES_MARK_READ: import.meta.env.VITE_API_MESSAGES_MARK_READ,

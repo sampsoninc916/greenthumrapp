@@ -1,5 +1,5 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { SECURITY_CONFIG } from '../config/amplify';
+import { API_ENDPOINTS, SECURITY_CONFIG } from '../config/amplify';
 
 type UserRole = 'buyer' | 'seller' | 'admin';
 
@@ -12,6 +12,86 @@ class AuthService {
   private roleCache: UserRole | null = null;
 
   private constructor() {}
+
+  private sanitizeUserScopedUrl(url: string): string {
+    if (!url.includes('userId=')) {
+      return url;
+    }
+
+    const userScopedEndpoints = [
+      API_ENDPOINTS.USERS_READ,
+      API_ENDPOINTS.USERS_UPDATE,
+      API_ENDPOINTS.USERS_WRITE,
+    ].filter((endpoint): endpoint is string => typeof endpoint === 'string' && endpoint.length > 0);
+
+    if (userScopedEndpoints.length === 0) {
+      return url;
+    }
+
+    const baseOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const toComparable = (value: string): string | null => {
+      try {
+        const parsed = new URL(value, baseOrigin);
+        return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '');
+      } catch {
+        const sanitized = value.split('?')[0]?.replace(/\/+$/, '');
+        return sanitized ?? null;
+      }
+    };
+
+    const normalizedUrl = toComparable(url);
+    if (!normalizedUrl) {
+      return url;
+    }
+
+    const matchesUserScopedEndpoint = userScopedEndpoints.some(endpoint => toComparable(endpoint) === normalizedUrl);
+    if (!matchesUserScopedEndpoint) {
+      return url;
+    }
+
+    try {
+      const parsedUrl = new URL(url, baseOrigin);
+      if (!parsedUrl.searchParams.has('userId')) {
+        return url;
+      }
+      parsedUrl.searchParams.delete('userId');
+      const serializedSearch = parsedUrl.searchParams.toString();
+      parsedUrl.search = serializedSearch ? `?${serializedSearch}` : '';
+      const isRelative = !/^https?:/i.test(url);
+      return isRelative
+        ? `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
+        : parsedUrl.toString();
+    } catch {
+      return url
+        .replace(/([?&])userId=[^&]*(&)?/, (_match, prefix, suffix) => {
+          if (!suffix) {
+            return '';
+          }
+          return prefix === '?' ? '?' : prefix;
+        })
+        .replace(/[?&]$/, '');
+    }
+  }
+
+  private handleForbiddenResponse(requestUrl: string): never {
+    console.warn(`Received unexpected 403 response for ${requestUrl}. Redirecting to login.`);
+    this.roleCache = null;
+
+    if (typeof window !== 'undefined') {
+      try {
+        const event = new CustomEvent('auth:forbidden', { detail: { url: requestUrl } });
+        window.dispatchEvent(event);
+      } catch {
+        // Silently ignore event dispatch errors
+      }
+
+      const currentLocation = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const loginUrl = `/login?reauth=1&redirect=${encodeURIComponent(currentLocation)}`;
+      window.location.href = loginUrl;
+    }
+
+    throw new Error('Access forbidden. Please sign in again.');
+  }
 
   private extractRole(payload: Record<string, any> | undefined): UserRole | null {
     if (!payload) {
@@ -133,6 +213,7 @@ class AuthService {
     }
 
     const isFormDataBody = typeof FormData !== 'undefined' && fetchConfig.body instanceof FormData;
+    const requestUrl = this.sanitizeUserScopedUrl(url);
 
     if (requiresAuth) {
       const tokenInfo = await this.getTokenAndRole();
@@ -162,7 +243,7 @@ class AuthService {
       fetchConfig.headers = existingHeaders;
     }
 
-    const response = await fetch(url, fetchConfig);
+    let response = await fetch(requestUrl, fetchConfig);
 
     if (response.status === 401 && requiresAuth) {
       const refreshedInfo = await this.getTokenAndRole(true);
@@ -182,11 +263,17 @@ class AuthService {
           retryHeaders.set('Content-Type', 'application/json');
         }
         fetchConfig.headers = retryHeaders;
-        return fetch(url, fetchConfig);
+        response = await fetch(requestUrl, fetchConfig);
+      } else {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        throw new Error('Authentication failed');
       }
+    }
 
-      window.location.href = '/login';
-      throw new Error('Authentication failed');
+    if (response.status === 403 && requiresAuth) {
+      this.handleForbiddenResponse(requestUrl);
     }
 
     return response;

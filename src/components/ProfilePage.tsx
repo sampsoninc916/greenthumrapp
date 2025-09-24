@@ -142,12 +142,7 @@ export function ProfilePage() {
   useEffect(() => {
     async function fetchUserAndPlants() {
       try {
-        const userId = "97c7e891-a50d-456d-990c-a3a271099c0c";
-        const tableName = "users";
-        const userData = { userId, tableName };
-        const queryParams = new URLSearchParams(userData as any).toString();
-        const url = `${API_ENDPOINTS.USERS_READ}?${queryParams}`;
-        const response = await apiClient.get(url, true); // Requires auth to read user data
+        const response = await apiClient.get(API_ENDPOINTS.USERS_READ, true); // Requires auth to read user data
         if (!response.ok) throw new Error("Failed to fetch user data");
         const data = await response.json();
         const parsed = parseUserData(data);
@@ -217,7 +212,7 @@ export function ProfilePage() {
   const saveChangesToBackend = async () => {
     try {
       const response = await apiClient.put(
-        `${API_ENDPOINTS.USERS_UPDATE}?userId=${user.userId}`,
+        API_ENDPOINTS.USERS_UPDATE,
         { fullName: editFullName, profilePic: editAvatar, description: editDescription },
         true, // Requires authentication
       );

@@ -5,7 +5,6 @@ import { Separator } from "./ui/separator";
 // TODO: Replace with actual Google and Apple icons or buttons
 import { Chrome } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
-import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from "../contexts/AuthContext";
 import { API_ENDPOINTS, SECURITY_CONFIG } from "../config/amplify";
 import { authService } from "../services/auth";
@@ -107,13 +106,12 @@ export function SignupPage() {
       await confirmSignup(userName, code);
       
       // Create user profile in backend with authentication
-      const userId = uuidv4();
       const token = await authService.getToken();
-      
+
       if (token) {
         await authService.authenticatedFetch(API_ENDPOINTS.USERS_WRITE, {
           method: 'POST',
-          body: JSON.stringify({ userId, phone, role: selectedRole || undefined }),
+          body: JSON.stringify({ phone, role: selectedRole || undefined }),
           requiresAuth: true
         });
       }
