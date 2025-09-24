@@ -5,6 +5,7 @@ import { PlantCard } from './components/PlantCard';
 import { CreateNewPlantModal } from './components/CreateNewPlantModal';
 import { PlantDetailModal } from './components/PlantDetailModal';
 import { Button } from './components/ui/button';
+import { MobileActionBar } from './components/MobileActionBar';
 import { SlidersHorizontal, Grid3X3, List } from 'lucide-react';
 import './index.css';
 import './App.css';
@@ -225,7 +226,7 @@ const App = () => {
               onFiltersChange={setFilters}
             />
 
-            <main className="flex-1 p-6">
+            <main className="flex-1 px-4 pb-32 pt-5 sm:px-6 sm:pb-10 sm:pt-6">
               {/* Controls */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
@@ -337,6 +338,8 @@ const App = () => {
           presentation={isMobile ? 'page' : 'modal'}
         />
       )}
+
+      <MobileActionBar onAddListing={handleAddListing} />
     </div>
   );
 }

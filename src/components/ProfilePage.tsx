@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent } from "react";
+import { useState, useEffect, ChangeEvent, useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -10,7 +10,13 @@ import { apiClient } from "../services/auth";
 import { getCurrentUser } from "aws-amplify/auth";
 import { useAuth } from "../contexts/AuthContext";
 import { AccountDeletedModal } from "./AccountDeletedModal";
- 
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
+import { Label } from "./ui/label";
+import { useIsMobile } from "../hooks/useIsMobile";
+import { MobileActionBar } from "./MobileActionBar";
+
 interface Review {
   rating: number;
   review: string;
@@ -25,8 +31,14 @@ function parseUserData(data: any) {
     profilePic: data.profilePic || "empty",
     description: data.description || "",
     subscription: data.subscription || "Free Plan",
-    plantListingIds: data.plantListings && Array.isArray(data.plantListings) && data.plantListings.length > 0 ? [...data.plantListings] : [],
-    savedListingIds: data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 0 ? [...data.savedListings] : [],
+    plantListingIds:
+      data.plantListings && Array.isArray(data.plantListings) && data.plantListings.length > 0
+        ? [...data.plantListings]
+        : [],
+    savedListingIds:
+      data.savedListings && Array.isArray(data.savedListings) && data.savedListings.length > 0
+        ? [...data.savedListings]
+        : [],
   };
 }
 
@@ -83,20 +95,48 @@ export function ProfilePage() {
   const { deleteAccount, role } = useAuth();
   const isSeller = role === "seller";
   const navigate = useNavigate();
+  const isMobileView = useIsMobile();
+
+  const settingsTabs = useMemo(
+    () =>
+      isSeller
+        ? [{ key: "seller-dashboard", label: "Seller Dashboard" }, ...baseSettingsTabs]
+        : baseSettingsTabs.filter((tab) => tab.key !== "listings"),
+    [isSeller],
+  );
 
   useEffect(() => {
     if (isSeller) {
-      setActiveTab(prev => (prev === "saved" ? "seller-dashboard" : prev));
+      setActiveTab((prev) => (prev === "saved" ? "seller-dashboard" : prev));
     } else if (role === "buyer") {
-      setActiveTab(prev => (prev === "listings" || prev === "seller-dashboard" ? "saved" : prev));
+      setActiveTab((prev) => (prev === "listings" || prev === "seller-dashboard" ? "saved" : prev));
     } else {
-      setActiveTab(prev => (prev === "seller-dashboard" ? "saved" : prev));
+      setActiveTab((prev) => (prev === "seller-dashboard" ? "saved" : prev));
     }
   }, [isSeller, role]);
 
-  const settingsTabs = isSeller
-    ? [{ key: "seller-dashboard", label: "Seller Dashboard" }, ...baseSettingsTabs]
-    : baseSettingsTabs.filter(tab => tab.key !== "listings");
+  useEffect(() => {
+    const updateTabFromHash = () => {
+      const hash = window.location.hash.replace("#", "");
+      if (!hash) {
+        return;
+      }
+      const hasTab = settingsTabs.some((tab) => tab.key === hash);
+      if (hasTab) {
+        setActiveTab(hash);
+      }
+    };
+
+    updateTabFromHash();
+    window.addEventListener("hashchange", updateTabFromHash);
+    return () => window.removeEventListener("hashchange", updateTabFromHash);
+  }, [settingsTabs]);
+
+  useEffect(() => {
+    if (!settingsTabs.some((tab) => tab.key === activeTab)) {
+      setActiveTab(settingsTabs[0]?.key ?? "saved");
+    }
+  }, [activeTab, settingsTabs]);
 
   // Fetch user data from API on mount
   useEffect(() => {
@@ -111,22 +151,22 @@ export function ProfilePage() {
         if (!response.ok) throw new Error("Failed to fetch user data");
         const data = await response.json();
         const parsed = parseUserData(data);
-        
+
         // Fetch all plant data
         const plantsResponse = await apiClient.get(API_ENDPOINTS.PLANTS_READ, false); // Public endpoint
         if (!plantsResponse.ok) throw new Error("Failed to fetch plants data");
         const allPlants: Plant[] = await plantsResponse.json();
-        
+
         // Filter plants for user's listings
-        const userPlants = allPlants.filter(plant => parsed.plantListingIds.includes(plant.id));
-        const savedPlants = allPlants.filter(plant => parsed.savedListingIds.includes(plant.id));
-        
+        const userPlants = allPlants.filter((plant) => parsed.plantListingIds.includes(plant.id));
+        const savedPlants = allPlants.filter((plant) => parsed.savedListingIds.includes(plant.id));
+
         setUserPlantListings(userPlants);
         setUserSavedListings(savedPlants);
         setUser({
           ...parsed,
           plantListings: userPlants,
-          savedListings: savedPlants
+          savedListings: savedPlants,
         });
         setEditDescription(parsed.description || "");
         setEditAvatar(parsed.profilePic);
@@ -163,12 +203,13 @@ export function ProfilePage() {
   const handleDeleteAccount = () => {
     deleteAccount();
     setShowDeletedModal(true);
-  }
+  };
 
   // Cancel editing
   const handleCancel = () => {
     setEditDescription(user.description);
     setEditAvatar(user.profilePic);
+    setEditFullName(user.fullName);
     setIsEditing(false);
   };
 
@@ -178,12 +219,12 @@ export function ProfilePage() {
       const response = await apiClient.put(
         `${API_ENDPOINTS.USERS_UPDATE}?userId=${user.userId}`,
         { fullName: editFullName, profilePic: editAvatar, description: editDescription },
-        true // Requires authentication
+        true, // Requires authentication
       );
       if (!response.ok) {
-        throw new Error('Failed to save changes');
+        throw new Error("Failed to save changes");
       }
-      console.log('Changes saved successfully');
+      console.log("Changes saved successfully");
       // Update local state if needed
       setUser({
         ...user,
@@ -193,232 +234,291 @@ export function ProfilePage() {
       });
       setIsEditing(false);
     } catch (error) {
-      console.error('Error saving changes:', error);
+      console.error("Error saving changes:", error);
+    }
+  };
+
+  const handleTabSelection = (tabKey: string) => {
+    setActiveTab(tabKey);
+    navigate(`#${tabKey}`, { replace: true });
+  };
+
+  const renderPlantCollection = (collection: Plant[], emptyState: string) => {
+    if (!collection || collection.length === 0) {
+      return (
+        <div className="rounded-xl border border-dashed border-green-200 bg-green-50/70 p-6 text-center text-sm text-green-700">
+          {emptyState}
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {collection.map((listing: Plant) => (
+          <Card key={listing.id} className="overflow-hidden border border-green-100 shadow-sm">
+            <PlantCard plant={listing} />
+          </Card>
+        ))}
+      </div>
+    );
+  };
+
+  const renderTabContent = (tabKey: string): ReactNode => {
+    switch (tabKey) {
+      case "seller-dashboard":
+        if (!isSeller) {
+          return null;
+        }
+        return (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Card className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Active Listings</p>
+              <p className="mt-2 text-2xl font-semibold text-green-700">{userPlantListings.length}</p>
+              <p className="text-xs text-gray-500">Manage and update your plant listings.</p>
+            </Card>
+            <Card className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Saved Leads</p>
+              <p className="mt-2 text-2xl font-semibold text-green-700">{userSavedListings.length}</p>
+              <p className="text-xs text-gray-500">Keep track of interested buyers.</p>
+            </Card>
+            <Card className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm sm:p-5">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Member Since</p>
+              <p className="mt-2 text-2xl font-semibold text-green-700">{user.joinedDate || "—"}</p>
+              <p className="text-xs text-gray-500">Grow your business with Thumr.</p>
+            </Card>
+          </div>
+        );
+      case "listings":
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-green-800 sm:text-xl">My Listings</h3>
+            {renderPlantCollection(userPlantListings, "No listings yet.")}
+          </div>
+        );
+      case "saved":
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-green-800 sm:text-xl">Saved Listings</h3>
+            {renderPlantCollection(userSavedListings, "No saved listings yet.")}
+          </div>
+        );
+      case "subscription":
+        return (
+          <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-green-800">Subscription Plan</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Current Plan: <span className="font-semibold text-green-700">{user.subscription}</span>
+            </p>
+            <Button className="mt-4 bg-green-600 text-white hover:bg-green-700">Upgrade Plan</Button>
+          </Card>
+        );
+      case "security":
+        return (
+          <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-green-800">Password & Security</h3>
+            <Button className="mt-4 bg-green-600 text-white hover:bg-green-700">Reset Password</Button>
+            <p className="mt-2 text-sm text-gray-500">
+              For account security, use a strong password and never share it.
+            </p>
+          </Card>
+        );
+      case "privacy":
+        return (
+          <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-green-800">Privacy Settings</h3>
+            <p className="mt-2 text-sm text-gray-600">Manage your privacy preferences and data sharing options.</p>
+            <Button className="mt-4 bg-green-600 text-white hover:bg-green-700">Edit Privacy Settings</Button>
+          </Card>
+        );
+      case "help":
+        return (
+          <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-green-800">Help & Support</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Need help? Visit our <a href="#" className="text-green-600 underline">Help Center</a> or contact support.
+            </p>
+            <Button className="mt-4 bg-green-600 text-white hover:bg-green-700">Contact Support</Button>
+          </Card>
+        );
+      case "about":
+        return (
+          <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-green-800">About Thumr</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Thumr is a community for plant lovers to buy, sell, and trade plants. Our mission is to connect people through greenery!
+            </p>
+          </Card>
+        );
+      case "feedback":
+        return (
+          <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-green-800">Send Feedback</h3>
+            <Textarea
+              className="mt-3 min-h-[120px]"
+              rows={3}
+              placeholder="Let us know your thoughts..."
+            />
+            <Button className="mt-4 bg-green-600 text-white hover:bg-green-700">Submit Feedback</Button>
+          </Card>
+        );
+      case "terms":
+        return (
+          <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-green-800">Terms of Service</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              By using Thumr, you agree to our terms of service and privacy policy.
+            </p>
+            <a href="#" className="mt-2 inline-block text-sm text-green-600 underline">
+              View Full Terms
+            </a>
+          </Card>
+        );
+      case "delete":
+        return (
+          <Card className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-green-800">Delete Account</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Are you sure you want to delete your account? This action cannot be undone.
+            </p>
+            <Button onClick={handleDeleteAccount} className="mt-4 bg-red-600 text-white hover:bg-red-700">
+              Delete Account
+            </Button>
+          </Card>
+        );
+      default:
+        return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-8 px-4">
-      {/* Profile Header */}
-      <div className="flex flex-col items-center mb-8">
-        <div className="relative">
-          <img
-            src={isEditing ? editAvatar : user?.profilePic.replace("'", "").replace('https://dev.thumr.com/', '')}
-            alt={user.fullName}
-            className="w-24 h-24 rounded-full object-cover border-4 border-green-300 mb-4"
-          />
-          {isEditing && (
-            <label className="absolute bottom-2 right-2 bg-green-600 text-white rounded-full px-2 py-1 text-xs cursor-pointer">
-              Change
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleAvatarChange}
+    <div className="min-h-screen bg-gray-50 pb-32 pt-8 sm:pb-20">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 sm:px-6">
+        <section className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="relative">
+              <img
+                src={isEditing ? editAvatar : user?.profilePic.replace("'", "").replace("https://dev.thumr.com/", "")}
+                alt={user.fullName}
+                className="h-24 w-24 rounded-full border-4 border-green-200 object-cover sm:h-28 sm:w-28"
               />
-            </label>
-          )}
-        </div>
-        <h2 className="text-2xl font-semibold text-green-800">{user.fullName}</h2>
-        {role && (
-          <span className="mt-1 inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium capitalize text-green-700">
-            {role} account
-          </span>
-        )}
-        {isEditing ? (
-          <>
-            <span className="text-green-800 text-md">Edit Name</span>
-            <input
-              type="text"
-              value={editFullName}
-              onChange={e => setEditFullName(e.target.value)}
-              className="mt-2 max-w-md w-full p-2 rounded border border-green-200 text-gray-700"
-            />
-          </>
-        ) : (
-          <p className="text-gray-600 text-center mt-2 max-w-md">{user.description}</p>
-        )}
-        {isEditing ? (
-          <>
-            <span className="text-green-800 text-md">Edit Description</span>
-              <textarea
-                value={editDescription}
-                onChange={e => setEditDescription(e.target.value)}
-                className="mt-2 max-w-md w-full p-2 rounded border border-green-200 text-gray-700"
-                rows={3}
-            />
-          </>
-        ) : (
-          <p className="text-gray-600 text-center mt-2 max-w-md">{user.description}</p>
-        )}
-        {isEditing ? (
-          <div className="flex gap-2 mt-4">
-            <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={saveChangesToBackend}>
-              Save
-            </Button>
-            <Button variant="outline" onClick={handleCancel}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <Button className="mt-4 bg-green-600 hover:bg-green-700 text-white" onClick={() => setIsEditing(true)}>
-            Edit Profile
-          </Button>
-        )}
-      </div>
+              {isEditing && (
+                <label className="absolute bottom-1 right-1 cursor-pointer rounded-full bg-green-600 px-3 py-1 text-xs font-semibold text-white shadow">
+                  Change
+                  <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                </label>
+              )}
+            </div>
+            <div className="mt-4 flex w-full max-w-xl flex-col items-center gap-3">
+              <h2 className="text-2xl font-semibold text-green-900 sm:text-3xl">{user.fullName}</h2>
+              {role && (
+                <span className="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-green-700">
+                  {role} account
+                </span>
+              )}
 
-      {/* Tabs */}
-      <div className="w-full max-w-4xl mb-8">
-        <div className="flex border-b border-green-200 overflow-x-auto">
-          {settingsTabs.map(tab => (
-            <button
-              key={tab.key}
-              className={`py-2 px-4 text-sm font-medium focus:outline-none ${
-                activeTab === tab.key
-                  ? "border-b-2 border-green-600 text-green-700 bg-green-50"
-                  : "text-gray-500 hover:text-green-700"
-              }`}
-              onClick={() => setActiveTab(tab.key)}
+              {isEditing ? (
+                <div className="w-full space-y-4 text-left">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-name" className="text-sm font-medium text-green-900">
+                      Display name
+                    </Label>
+                    <Input
+                      id="profile-name"
+                      type="text"
+                      value={editFullName}
+                      onChange={(e) => setEditFullName(e.target.value)}
+                      className="bg-green-50/40"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-bio" className="text-sm font-medium text-green-900">
+                      Bio
+                    </Label>
+                    <Textarea
+                      id="profile-bio"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={4}
+                      className="min-h-[120px] bg-green-50/40"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                    <Button className="bg-green-600 text-white hover:bg-green-700" onClick={saveChangesToBackend}>
+                      Save changes
+                    </Button>
+                    <Button variant="outline" onClick={handleCancel}>
+                      Cancel
+                    </Button>
+                    <Button variant="ghost" onClick={handleSave}>
+                      Save locally
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="max-w-2xl text-sm text-gray-600 sm:text-base">
+                    {user.description || "Share a short bio to connect with the community."}
+                  </p>
+                  <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => setIsEditing(true)}>
+                    Edit Profile
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="w-full">
+          {isMobileView ? (
+            <Accordion
+              type="single"
+              collapsible
+              value={activeTab}
+              onValueChange={(value) => value && handleTabSelection(value)}
+              className="overflow-hidden rounded-2xl border border-green-100 bg-white"
             >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+              {settingsTabs.map((tab) => (
+                <AccordionItem key={tab.key} value={tab.key}>
+                  <AccordionTrigger className="px-4 text-left text-base font-semibold text-green-900">
+                    {tab.label}
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4">
+                    <div className="space-y-4">{renderTabContent(tab.key)}</div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          ) : (
+            <div className="rounded-2xl border border-green-100 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap gap-2">
+                {settingsTabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                      activeTab === tab.key
+                        ? "bg-green-600 text-white shadow"
+                        : "bg-green-50 text-green-700 hover:bg-green-100"
+                    }`}
+                    onClick={() => handleTabSelection(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-6 space-y-4">{renderTabContent(activeTab)}</div>
+            </div>
+          )}
+        </section>
       </div>
 
-      {/* Tab Content */}
-      <div className="w-full max-w-4xl">
-        {activeTab === "seller-dashboard" && isSeller && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <Card className="p-4 border border-green-100 bg-white">
-              <p className="text-xs uppercase text-gray-500 tracking-wide">Active Listings</p>
-              <p className="mt-2 text-2xl font-semibold text-green-700">{userPlantListings.length}</p>
-              <p className="text-xs text-gray-500">Manage and update your plant listings.</p>
-            </Card>
-            <Card className="p-4 border border-green-100 bg-white">
-              <p className="text-xs uppercase text-gray-500 tracking-wide">Saved Leads</p>
-              <p className="mt-2 text-2xl font-semibold text-green-700">{userSavedListings.length}</p>
-              <p className="text-xs text-gray-500">Keep track of interested buyers.</p>
-            </Card>
-            <Card className="p-4 border border-green-100 bg-white">
-              <p className="text-xs uppercase text-gray-500 tracking-wide">Member Since</p>
-              <p className="mt-2 text-2xl font-semibold text-green-700">{user.joinedDate || '—'}</p>
-              <p className="text-xs text-gray-500">Grow your business with Thumr.</p>
-            </Card>
-          </div>
-        )}
-
-        {activeTab === "listings" && isSeller && (
-          <>
-            <h3 className="text-lg font-medium text-green-700 mb-4">My Listings</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {userPlantListings && userPlantListings.length > 0 ? (
-                userPlantListings.map((listing: Plant) => (
-                  <Card key={listing.id}>
-                    <PlantCard
-                      plant={listing}
-                      // onClick={() => {}}
-                    />
-                  </Card>
-                ))
-              ) : (
-                <div className="text-gray-500">No listings yet.</div>
-              )}
-            </div>
-          </>
-        )}
-
-        {activeTab === "saved" && (
-          <>
-            <h3 className="text-lg font-medium text-green-700 mb-4">Saved Listings</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {userSavedListings && userSavedListings.length > 0 ? (
-                userSavedListings.map((listing: Plant) => (
-                  <Card key={listing.id}>
-                    <PlantCard
-                      plant={listing}
-                      // onClick={() => {}}
-                    />
-                  </Card>
-                ))
-              ) : (
-                <div className="text-gray-500">No saved listings yet.</div>
-              )}
-            </div>
-          </>
-        )}
-
-        {activeTab === "subscription" && (
-          <div className="p-6 bg-white rounded-lg shadow border border-green-100">
-            <h3 className="text-lg font-medium text-green-700 mb-2">Subscription Plan</h3>
-            <p className="mb-4">Current Plan: <span className="font-semibold">{user.subscription}</span></p>
-            <Button className="bg-green-600 hover:bg-green-700 text-white">Upgrade Plan</Button>
-          </div>
-        )}
-
-        {activeTab === "security" && (
-          <div className="p-6 bg-white rounded-lg shadow border border-green-100">
-            <h3 className="text-lg font-medium text-green-700 mb-2">Password & Security</h3>
-            <Button className="bg-green-600 hover:bg-green-700 text-white mb-2">Reset Password</Button>
-            <p className="text-gray-500 text-sm">For account security, use a strong password and never share it.</p>
-          </div>
-        )}
-
-        {activeTab === "privacy" && (
-          <div className="p-6 bg-white rounded-lg shadow border border-green-100">
-            <h3 className="text-lg font-medium text-green-700 mb-2">Privacy Settings</h3>
-            <p className="text-gray-500 mb-2">Manage your privacy preferences and data sharing options.</p>
-            <Button className="bg-green-600 hover:bg-green-700 text-white">Edit Privacy Settings</Button>
-          </div>
-        )}
-
-        {activeTab === "help" && (
-          <div className="p-6 bg-white rounded-lg shadow border border-green-100">
-            <h3 className="text-lg font-medium text-green-700 mb-2">Help & Support</h3>
-            <p className="mb-2">Need help? Visit our <a href="#" className="text-green-600 underline">Help Center</a> or contact support.</p>
-            <Button className="bg-green-600 hover:bg-green-700 text-white">Contact Support</Button>
-          </div>
-        )}
-
-        {activeTab === "about" && (
-          <div className="p-6 bg-white rounded-lg shadow border border-green-100">
-            <h3 className="text-lg font-medium text-green-700 mb-2">About Thumr</h3>
-            <p className="text-gray-500">Thumr is a community for plant lovers to buy, sell, and trade plants. Our mission is to connect people through greenery!</p>
-          </div>
-        )}
-
-        {activeTab === "feedback" && (
-          <div className="p-6 bg-white rounded-lg shadow border border-green-100">
-            <h3 className="text-lg font-medium text-green-700 mb-2">Send Feedback</h3>
-            <textarea
-              className="w-full p-2 border border-green-200 rounded mb-2"
-              rows={3}
-              placeholder="Let us know your thoughts..."
-            />
-            <Button className="bg-green-600 hover:bg-green-700 text-white">Submit Feedback</Button>
-          </div>
-        )}
-
-        {activeTab === "terms" && (
-          <div className="p-6 bg-white rounded-lg shadow border border-green-100">
-            <h3 className="text-lg font-medium text-green-700 mb-2">Terms of Service</h3>
-            <p className="text-gray-500 text-sm">By using Thumr, you agree to our terms of service and privacy policy.</p>
-            <a href="#" className="text-green-600 underline">View Full Terms</a>
-          </div>
-        )}
-
-        {activeTab === "delete" && (
-          <div className="p-6 bg-white rounded-lg shadow border border-green-100">
-            <h3 className="text-lg font-medium text-green-700 mb-2">Delete Account</h3>
-            <p className="text-gray-500 text-sm">Are you sure you want to delete your account? This action cannot be undone.</p>
-            <Button onClick={handleDeleteAccount} className="bg-red-600 hover:bg-red-700 text-white">Delete Account</Button>
-          </div>
-        )}
-        <AccountDeletedModal isOpen={showDeletedModal} onClose={() => {
+      <AccountDeletedModal
+        isOpen={showDeletedModal}
+        onClose={() => {
           setShowDeletedModal(false);
           navigate("/");
-        }} />
-      </div>
+        }}
+      />
+      <MobileActionBar />
     </div>
   );
 }
