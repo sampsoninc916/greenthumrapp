@@ -132,6 +132,8 @@ class AuthService {
       fetchConfig.credentials = fetchConfig.credentials ?? 'include';
     }
 
+    const isFormDataBody = typeof FormData !== 'undefined' && fetchConfig.body instanceof FormData;
+
     if (requiresAuth) {
       const tokenInfo = await this.getTokenAndRole();
       const token = tokenInfo?.token;
@@ -143,7 +145,7 @@ class AuthService {
 
       const existingHeaders = new Headers(fetchConfig.headers as HeadersInit | undefined);
       existingHeaders.set('Authorization', `Bearer ${token}`);
-      if (!existingHeaders.has('Content-Type')) {
+      if (!existingHeaders.has('Content-Type') && !isFormDataBody) {
         existingHeaders.set('Content-Type', 'application/json');
       }
       if (role) {
@@ -154,7 +156,7 @@ class AuthService {
       fetchConfig.headers = existingHeaders;
     } else if (fetchConfig.body) {
       const existingHeaders = new Headers(fetchConfig.headers as HeadersInit | undefined);
-      if (!existingHeaders.has('Content-Type')) {
+      if (!existingHeaders.has('Content-Type') && !isFormDataBody) {
         existingHeaders.set('Content-Type', 'application/json');
       }
       fetchConfig.headers = existingHeaders;
@@ -175,7 +177,8 @@ class AuthService {
         } else {
           retryHeaders.delete('X-User-Role');
         }
-        if (!retryHeaders.has('Content-Type') && fetchConfig.body) {
+        const retryIsFormData = typeof FormData !== 'undefined' && fetchConfig.body instanceof FormData;
+        if (!retryHeaders.has('Content-Type') && fetchConfig.body && !retryIsFormData) {
           retryHeaders.set('Content-Type', 'application/json');
         }
         fetchConfig.headers = retryHeaders;

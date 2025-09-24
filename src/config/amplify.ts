@@ -115,6 +115,7 @@ export const API_ENDPOINTS = {
   PLANTS_READ: import.meta.env.VITE_API_PLANTS_READ,
   PLANTS_WRITE: import.meta.env.VITE_API_PLANTS_WRITE,
   PLANTS_UPDATE: import.meta.env.VITE_API_PLANTS_UPDATE,
+  UPLOAD_SCAN: import.meta.env.VITE_API_UPLOAD_SCAN,
   USERS_READ: import.meta.env.VITE_API_USERS_READ,
   USERS_WRITE: import.meta.env.VITE_API_USERS_WRITE,
   USERS_UPDATE: import.meta.env.VITE_API_USERS_UPDATE,
