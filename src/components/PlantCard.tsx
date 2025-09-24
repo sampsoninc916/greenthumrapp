@@ -33,6 +33,10 @@ export function PlantCard({
     onViewDetail?.(plant);
   };
 
+  const handlePlantUpdate = (updatedPlant: Plant) => {
+    onPlantUpdate?.(updatedPlant);
+  }
+
   const getConditionColor = (condition: string) => {
     switch (condition) {
       case 'New': return 'bg-green-100 text-green-800';
