@@ -35,7 +35,7 @@ export function PrivacyPolicy() {
           delete, and opt out of the sale or sharing of personal information.
         </p>
         <p>
-          Requests can be submitted through your account settings or by emailing
+          Requests can be submitted through your account settings or by emailing&nbsp;
           <a className="text-green-700 underline" href="mailto:privacy@thumr.com">
             privacy@thumr.com
           </a>

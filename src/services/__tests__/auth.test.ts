@@ -26,7 +26,7 @@ const setMockWindow = () => {
   (globalThis as any).window = {
     location: mockLocation,
     dispatchEvent: vi.fn(),
-  } as Window;
+  } as unknown as Window;
 
   (globalThis as any).CustomEvent = class {
     type: string;

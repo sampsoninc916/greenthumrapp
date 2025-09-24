@@ -8,7 +8,7 @@ export function useUnreadConversations(pollInterval: number = 60000) {
 
   useEffect(() => {
     let isMounted = true;
-    let interval: ReturnType<typeof setInterval> | undefined;
+    let interval: number | undefined;
 
     const fetchUnreadCount = async () => {
       if (!isAuthenticated) {

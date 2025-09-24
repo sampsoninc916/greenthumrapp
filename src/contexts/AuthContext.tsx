@@ -61,8 +61,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   type AuthSessionResult = Awaited<ReturnType<typeof fetchAuthSession>>;
 
-  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTimeoutRef = useRef<number | null>(null);
+  const idleTimeoutRef = useRef<number | null>(null);
   const refreshTokenRef = useRef<(() => Promise<void>) | null>(null);
 
   const extractRoleFromPayload = useCallback((payload: Record<string, any> | undefined): UserRole | null => {
