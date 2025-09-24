@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft, ShoppingCart, Send, Loader2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -21,6 +21,7 @@ import { messagesService } from '../services/messages';
 import type { MessageThread, ThreadMessage } from '../services/messages';
 import { reviewsService } from '../services/reviews';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import {
   DELIVERY_METHOD_LABEL_LOOKUP,
   extractStateCode,
@@ -33,12 +34,19 @@ interface PlantDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPlantUpdate?: (plant: Plant) => void;
+  presentation?: 'modal' | 'page';
 }
 
-export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: PlantDetailModalProps) {
+export function PlantDetailModal({
+  plant,
+  isOpen,
+  onClose,
+  onPlantUpdate,
+  presentation = 'modal',
+}: PlantDetailModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
-  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+  const isMobileView = useIsMobile();
   const [isReviewScreenOpen, setIsReviewScreenOpen] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
@@ -55,20 +63,6 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const messageListRef = useRef<HTMLDivElement | null>(null);
-
-  // Handle window resize with cleanup
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobileView(window.innerWidth < 768);
-    };
-
-    window.addEventListener('resize', handleResize);
-    
-    // Cleanup listener on unmount
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
 
   // Sync plantName and currentPlant when plant prop changes
   useEffect(() => {
@@ -99,6 +93,7 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
   };
 
   const messageCount = conversationThread?.messages?.length ?? 0;
+  const isPagePresentation = presentation === 'page';
 
   useEffect(() => {
     if (!isConversationOpen) {
@@ -478,446 +473,453 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
     setIsEditListingScreenOpen(false);
   };
 
-  return (
-    <>
-      <Dialog open={isOpen} onOpenChange={handleClose}>
-
-      {/* Default Plant Detail Listing Screen */}
-      {(!isReviewScreenOpen && !isEditListingScreenOpen) && (
-        <DialogContent className="max-w-4xl h-screen md:h-[83vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{currentPlant.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-12">
-            <DialogHeader className="flex flex-row items-center justify-between p-0">
-              <div />
-              <Button
-                variant="white"
-                size="sm"
-                onClick={handleClose}
-                className="h-6 w-8 p-0 hidden"
-              >
-                {/* <X className="h-4 w-4" /> */}
-              </Button>
-            </DialogHeader>
-
-            <div className="grid md:grid-cols-1 gap-6 -mt-12">
-              {/* Images */}
-              <div className="space-y-4">
-                <div className="aspect-square overflow-hidden rounded-lg bg-gray-100">
-                  <ImageWithFallback
-                    src={Array.isArray(currentPlant.images) ? currentPlant.images[currentImageIndex] : currentPlant.images}
-                    alt={currentPlant.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                {Array.isArray(currentPlant.images) && currentPlant.images.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto">
-                    {currentPlant.images.map((image, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setCurrentImageIndex(index)}
-                        className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 ${index === currentImageIndex
-                          ? 'border-green-500'
-                          : 'border-gray-200'
-                          }`}
-                      >
-                        <ImageWithFallback
-                          src={image}
-                          alt={`${currentPlant.name} ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Details */}
-              <div className="space-y-6">
-                {/* Header */}
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between">
-                    <h1 className="text-2xl font-semibold">{currentPlant.name}</h1>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsLiked(!isLiked)}
-                      className="p-2"
-                    >
-                      <Heart
-                        className={`h-5 w-5 ${isLiked ? 'fill-red-500 text-red-500' : 'text-gray-600'}`}
-                      />
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-green-600">
-                          ${currentPlant.price}
-                        </span>
-                        <Badge className={getConditionColor(currentPlant.condition)} variant="secondary">
-                          {currentPlant.condition}
-                        </Badge>
-                        <Badge variant="outline">{currentPlant.category}</Badge>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
-                        <span>{currentPlant.location}</span>
-                      </div>
-                    </div>
-
-                    {/* {isCurrentUsersListing && ( */}
-                    <div className="space-y-3">
-                      <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => setIsEditListingScreenOpen(true)}>
-                        Edit Listing
-                      </Button>
-                    </div>
-                    {/* )} */}
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Seller Info */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={currentPlant.sellerAvatar} />
-                      <AvatarFallback>
-                        <User className="h-4 w-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{currentPlant.seller}</p>
-                      <div className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                        <span className="text-sm text-muted-foreground">
-                          {currentPlant.sellerRating} rating
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-green-600" />
-                    <span className="text-sm text-green-600">Verified Seller</span>
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Plant Details */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Pot Size:</span>
-                      <p className="font-medium">{currentPlant.potSize}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Height:</span>
-                      <p className="font-medium">{currentPlant.height}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h3 className="text-base font-semibold text-green-700">Taxonomy &amp; Growing Preferences</h3>
-                    {hasTaxonomyOrCareDetails ? (
-                      <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
-                        {normalizedSpecies && (
-                          <div>
-                            <span className="text-muted-foreground">Species:</span>
-                            <p className="font-medium">{normalizedSpecies}</p>
-                          </div>
-                        )}
-                        {normalizedCultivar && (
-                          <div>
-                            <span className="text-muted-foreground">Cultivar:</span>
-                            <p className="font-medium">{normalizedCultivar}</p>
-                          </div>
-                        )}
-                        {normalizedUsdaZone && (
-                          <div>
-                            <span className="text-muted-foreground">USDA hardiness zone:</span>
-                            <p className="font-medium">{normalizedUsdaZone}</p>
-                          </div>
-                        )}
-                        {normalizedLightPreference && (
-                          <div>
-                            <span className="text-muted-foreground">Light preference:</span>
-                            <p className="font-medium">{normalizedLightPreference}</p>
-                          </div>
-                        )}
-                        {normalizedSoilPreference && (
-                          <div>
-                            <span className="text-muted-foreground">Soil preference:</span>
-                            <p className="font-medium">{normalizedSoilPreference}</p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Seller has not shared taxonomy or growing preferences yet.
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <span className="text-muted-foreground">Description:</span>
-                    <p className="mt-1">{currentPlant.description}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-muted-foreground">Care Instructions:</span>
-                    <p className="mt-1">{currentPlant.careInstructions}</p>
-                  </div>
-                </div>
-
-                <Separator />
-
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-base font-semibold text-green-700">Shipping &amp; Delivery</h3>
-                  <p className="text-sm text-gray-600">
-                    Fulfillment guidance approved for this listing.
-                  </p>
-                </div>
-                <div className="space-y-3 text-sm">
-                  {deliveryMethods.length > 0 ? (
-                    <div>
-                      <span className="text-muted-foreground">Available methods:</span>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {deliveryMethods.map((method) => (
-                          <Badge
-                            key={method}
-                            variant="outline"
-                            className="border-emerald-200 bg-emerald-50 text-emerald-700"
-                          >
-                            {DELIVERY_METHOD_LABEL_LOOKUP.get(method) ?? method.replace(/_/g, ' ')}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                  {formattedZipRanges.length > 0 && (
-                    <div>
-                      <span className="text-muted-foreground">Ship-to ZIP ranges:</span>
-                      <p className="mt-1">{formattedZipRanges.join(', ')}</p>
-                    </div>
-                  )}
-                  {packagingNotes && (
-                    <div>
-                      <span className="text-muted-foreground">Packaging notes:</span>
-                      <p className="mt-1 whitespace-pre-line">{packagingNotes}</p>
-                    </div>
-                  )}
-                  {hasWarrantyDetails ? (
-                    <div>
-                      <span className="text-muted-foreground">Live-plant warranty:</span>
-                      <p className="mt-1">
-                        {normalizedWarranty.isOffered
-                          ? `Warranty offered${
-                              normalizedWarranty.durationDays
-                                ? ` for ${normalizedWarranty.durationDays} day${
-                                    normalizedWarranty.durationDays === 1 ? '' : 's'
-                                  }`
-                                : ''
-                            }.`
-                          : 'No live-plant warranty advertised.'}
-                      </p>
-                      {normalizedWarranty.notes && (
-                        <p className="mt-1 whitespace-pre-line">{normalizedWarranty.notes}</p>
-                      )}
-                    </div>
-                  ) : null}
-                  {!hasFulfillmentDetails && (
-                    <p className="text-muted-foreground">
-                      Seller has not published shipping, delivery, or warranty details for this listing yet.
-                    </p>
-                  )}
-                  {!hasWarrantyDetails && hasFulfillmentDetails && (
-                    <div>
-                      <span className="text-muted-foreground">Live-plant warranty:</span>
-                      <p className="mt-1">No live-plant warranty advertised.</p>
-                    </div>
-                  )}
-                </div>
-                {prohibitedStateMessage && (
-                  <Alert variant="destructive">
-                    <AlertTitle>Shipping restriction</AlertTitle>
-                    <AlertDescription>{prohibitedStateMessage}</AlertDescription>
-                  </Alert>
-                )}
-              </div>
-
-              <Separator />
-
-              {/* Actions */}
-              <div className="space-y-3">
-                <Button
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    onClick={() => addItem(currentPlant)}
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
-                    {alreadyInCart ? 'Add another to cart' : 'Add to cart'}
-                  </Button>
-                  <Button
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    onClick={handleContactSeller}
-                    disabled={isContactingSeller}
-                  >
-                    {isContactingSeller ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Connecting...
-                      </>
-                    ) : (
-                      <>
-                        <MessageCircle className="h-4 w-4 mr-2" />
-                        Contact Seller
-                      </>
-                    )}
-                  </Button>
-                  <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleAddReview}>
-                    Add Review
-                  </Button>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" onClick={handleContactSeller} disabled={isContactingSeller}>
-                      <MessageCircle className="h-4 w-4 mr-2" />
-                      {isContactingSeller ? 'Opening...' : 'Message'}
-                    </Button>
-                    <Button variant="outline">
-                      Make Offer
-                    </Button>
-                  </div>
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  Posted {currentPlant.postedDate}
-                </p>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      )}
-
-      {/* Edit Listing Screen */}
-      {(!isReviewScreenOpen && isEditListingScreenOpen) && (
-        <EditListingScreen
-          plant={currentPlant}
-          onCancel={() => setIsEditListingScreenOpen(false)}
-          onSave={handleListingSave}
+  const renderImageGallery = () => (
+    <div className="space-y-4">
+      <div className="aspect-square overflow-hidden rounded-lg bg-gray-100">
+        <ImageWithFallback
+          src={Array.isArray(currentPlant?.images) ? currentPlant.images[currentImageIndex] : currentPlant?.images}
+          alt={currentPlant?.name ?? 'Plant image'}
+          className="h-full w-full object-cover"
         />
-      )}
+      </div>
 
-      {/* Review Screen */}
-      {isReviewScreenOpen && (
-        <DialogContent className={"max-w-4xl h-screen md:h-[83vh] overflow-y-auto"}>
-          <DialogHeader>
-            <DialogTitle>{currentPlant.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-12">
-            <DialogHeader className="flex flex-row items-center justify-between p-0">
+      {Array.isArray(currentPlant?.images) && currentPlant.images.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto">
+          {currentPlant.images.map((image, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentImageIndex(index)}
+              className={`flex-shrink-0 h-16 w-16 overflow-hidden rounded-md border-2 ${
+                index === currentImageIndex ? 'border-green-500' : 'border-gray-200'
+              }`}
+            >
+              <ImageWithFallback
+                src={image}
+                alt={`${currentPlant?.name ?? 'Plant'} ${index + 1}`}
+                className="h-full w-full object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderDetailSections = (options?: { showBackButton?: boolean }) => (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {options?.showBackButton && (
               <Button
                 variant="ghost"
-                size="sm"
-                onClick={() => handleReviewBack(reviewComment, reviewRating)}
-                className="h-6 w-8 p-0 -mt-6 -ml-4"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
+                size="icon"
                 onClick={handleClose}
-                className="h-6 w-8 p-0 hidden"
+                className="h-10 w-10 rounded-full border border-border"
               >
-                {/* <X className="h-4 w-4" /> */}
+                <ArrowLeft className="h-5 w-5" />
+                <span className="sr-only">Back to listings</span>
               </Button>
-            </DialogHeader>
-            {/* Custom Alert Modal */}
-            {showBackAlert && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 border border-black rounded-md">
-                <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full">
-                  <div className="mb-4 text-center">
-                    <p className="text-lg font-semibold mb-2">
-                      Are you sure you want to go back?
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Some changes may be unsaved.
-                    </p>
-                  </div>
-                  <div className="flex justify-center gap-3">
-                    <Button
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      onClick={handleBackConfirm}
-                    >
-                      Yes
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="border-green-600 text-green-600 hover:bg-green-50"
-                      onClick={handleBackCancel}
-                    >
-                      No
-                    </Button>
-                  </div>
+            )}
+            <h1 className="text-2xl font-semibold">{currentPlant?.name}</h1>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsLiked(!isLiked)}
+            className="h-10 w-10 rounded-full border border-border"
+          >
+            <Heart className={`h-5 w-5 ${isLiked ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
+            <span className="sr-only">{isLiked ? 'Remove from favorites' : 'Save listing'}</span>
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <span className="text-2xl font-bold text-green-600">
+              ${currentPlant?.price ?? 0}
+            </span>
+            {currentPlant?.condition && (
+              <Badge className={getConditionColor(currentPlant.condition)} variant="secondary">
+                {currentPlant.condition}
+              </Badge>
+            )}
+            {currentPlant?.category && <Badge variant="outline">{currentPlant.category}</Badge>}
+          </div>
+
+          <div className="flex w-full flex-col items-start gap-3 sm:w-auto sm:items-end">
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              <span>{currentPlant?.location}</span>
+            </div>
+            <Button
+              className="w-full rounded-full bg-green-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-green-700 sm:w-auto"
+              onClick={() => setIsEditListingScreenOpen(true)}
+            >
+              Edit Listing
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Avatar>
+            <AvatarImage src={currentPlant?.sellerAvatar} />
+            <AvatarFallback>
+              <User className="h-4 w-4" />
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-medium">{currentPlant?.seller}</p>
+            <div className="flex items-center gap-1">
+              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+              <span className="text-sm text-muted-foreground">
+                {currentPlant?.sellerRating} rating
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-green-600">
+          <Shield className="h-4 w-4" />
+          <span>Verified Seller</span>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-4 text-sm">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <span className="text-muted-foreground">Pot Size:</span>
+            <p className="font-medium">{currentPlant?.potSize}</p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Height:</span>
+            <p className="font-medium">{currentPlant?.height}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-base font-semibold text-green-700">Taxonomy &amp; Growing Preferences</h3>
+          {hasTaxonomyOrCareDetails ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <div>
+                  <span className="text-muted-foreground">Species:</span>
+                  <p className="font-medium">{normalizedSpecies || 'Not specified'}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Cultivar:</span>
+                  <p className="font-medium">{normalizedCultivar || 'Not specified'}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">USDA zone:</span>
+                  <p className="font-medium">{normalizedUsdaZone || 'Not specified'}</p>
                 </div>
               </div>
-            )}
-            {/* Details */}
-            <div className="space-y-6">
-              {/* Header */}
-              <div className="space-y-2">
-                <div className="flex items-start justify-between">
-                  <h1 className="text-2xl font-semibold">Your Rating</h1>
-                  <StarRating value={reviewRating} onChange={setReviewRating} />
-                </div>
-
+              <div className="space-y-3">
                 <div>
-                  <Textarea
-                    id="message"
-                    rows={8}
-                    value={reviewComment}
-                    onChange={(e) => setReviewComment(e.target.value)}
-                    placeholder="Share details about your experience with this seller..."
-                    className="min-h-[200px]"
-                  />
+                  <span className="text-muted-foreground">Light preference:</span>
+                  <p className="font-medium">{normalizedLightPreference || 'Not specified'}</p>
                 </div>
-                <div className="flex items-start justify-between">
-                  <Button
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    onClick={handleReviewSubmit}
-                    disabled={isSubmittingReview || reviewRating <= 0}
-                  >
-                    {isSubmittingReview ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Submitting...
-                      </>
-                    ) : (
-                      'Submit'
-                    )}
-                  </Button>
+                <div>
+                  <span className="text-muted-foreground">Soil preference:</span>
+                  <p className="font-medium">{normalizedSoilPreference || 'Not specified'}</p>
                 </div>
               </div>
             </div>
-          </div>
-        </DialogContent>
-      )}
-      </Dialog>
+          ) : (
+            <p className="text-muted-foreground">
+              Seller has not provided detailed taxonomy or care preferences for this listing yet.
+            </p>
+          )}
+        </div>
 
-      <Drawer
-        open={isConversationOpen}
-        onOpenChange={(open) => {
-          setIsConversationOpen(open);
-          if (!open) {
-            setNewMessageBody('');
-          }
-        }}
-      >
+        {currentPlant?.description && (
+          <div className="space-y-2">
+            <h3 className="text-base font-semibold text-green-700">Description</h3>
+            <p className="leading-relaxed text-muted-foreground whitespace-pre-line">
+              {currentPlant.description}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <Separator />
+
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Shield className="h-4 w-4" />
+          <span>Safe &amp; secure checkout guaranteed</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Star className="h-4 w-4 text-yellow-400" />
+          <span>Over {currentPlant?.sellerReviewCount ?? 0} verified reviews</span>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Seller Rating</span>
+          <div className="flex items-center gap-1 text-sm font-semibold">
+            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+            <span>{currentPlant?.sellerRating}</span>
+          </div>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          Based on {currentPlant?.sellerReviewCount ?? 0} reviews
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-4 text-sm">
+        <div>
+          <h3 className="text-base font-semibold text-green-700">Shipping &amp; Delivery</h3>
+          <p className="text-sm text-gray-600">
+            Fulfillment guidance approved for this listing.
+          </p>
+        </div>
+        <div className="space-y-3">
+          {deliveryMethods.length > 0 && (
+            <div>
+              <span className="text-muted-foreground">Available methods:</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {deliveryMethods.map((method) => (
+                  <Badge
+                    key={method}
+                    variant="outline"
+                    className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                  >
+                    {DELIVERY_METHOD_LABEL_LOOKUP.get(method) ?? method.replace(/_/g, ' ')}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {formattedZipRanges.length > 0 && (
+            <div>
+              <span className="text-muted-foreground">Ship-to ZIP ranges:</span>
+              <p className="mt-1">{formattedZipRanges.join(', ')}</p>
+            </div>
+          )}
+          {packagingNotes && (
+            <div>
+              <span className="text-muted-foreground">Packaging notes:</span>
+              <p className="mt-1 whitespace-pre-line">{packagingNotes}</p>
+            </div>
+          )}
+          {hasWarrantyDetails ? (
+            <div>
+              <span className="text-muted-foreground">Live-plant warranty:</span>
+              <p className="mt-1">
+                {normalizedWarranty.isOffered
+                  ? `Warranty offered${
+                      normalizedWarranty.durationDays
+                        ? ` for ${normalizedWarranty.durationDays} day${
+                            normalizedWarranty.durationDays === 1 ? '' : 's'
+                          }`
+                        : ''
+                    }.`
+                  : 'No live-plant warranty advertised.'}
+              </p>
+              {normalizedWarranty.notes && (
+                <p className="mt-1 whitespace-pre-line">{normalizedWarranty.notes}</p>
+              )}
+            </div>
+          ) : null}
+          {!hasFulfillmentDetails && (
+            <p className="text-muted-foreground">
+              Seller has not published shipping, delivery, or warranty details for this listing yet.
+            </p>
+          )}
+          {!hasWarrantyDetails && hasFulfillmentDetails && (
+            <div>
+              <span className="text-muted-foreground">Live-plant warranty:</span>
+              <p className="mt-1">No live-plant warranty advertised.</p>
+            </div>
+          )}
+        </div>
+        {prohibitedStateMessage && (
+          <Alert variant="destructive">
+            <AlertTitle>Shipping restriction</AlertTitle>
+            <AlertDescription>{prohibitedStateMessage}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+
+      <Separator />
+
+      <div className="space-y-4">
+        <Button
+          className="w-full bg-green-600 py-3 text-base hover:bg-green-700"
+          onClick={() => currentPlant && addItem(currentPlant)}
+        >
+          <ShoppingCart className="mr-2 h-5 w-5" />
+          {alreadyInCart ? 'Add another to cart' : 'Add to cart'}
+        </Button>
+        <Button
+          className="w-full bg-green-600 py-3 text-base hover:bg-green-700"
+          onClick={handleContactSeller}
+          disabled={isContactingSeller}
+        >
+          {isContactingSeller ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Connecting...
+            </>
+          ) : (
+            <>
+              <MessageCircle className="mr-2 h-5 w-5" />
+              Contact Seller
+            </>
+          )}
+        </Button>
+        <Button
+          className="w-full bg-green-600 py-3 text-base hover:bg-green-700"
+          onClick={handleAddReview}
+        >
+          Add Review
+        </Button>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Button
+            variant="outline"
+            onClick={handleContactSeller}
+            disabled={isContactingSeller}
+            className="py-3 text-base"
+          >
+            <MessageCircle className="mr-2 h-5 w-5" />
+            {isContactingSeller ? 'Opening...' : 'Message'}
+          </Button>
+          <Button variant="outline" className="py-3 text-base">
+            Make Offer
+          </Button>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Posted {currentPlant?.postedDate}
+      </p>
+    </div>
+  );
+
+
+  const renderDefaultBody = () => (
+    <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start lg:gap-10">
+      <section className="flex flex-col gap-6">{renderImageGallery()}</section>
+      <section className="flex flex-col gap-6">
+        {renderDetailSections({ showBackButton: !isPagePresentation })}
+      </section>
+    </div>
+  );
+
+  const renderReviewBody = () => (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-1 items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleReviewBack(reviewComment, reviewRating)}
+            className="h-10 w-10 rounded-full border border-border"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            <span className="sr-only">Back to listing</span>
+          </Button>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold leading-tight">Share your experience</h2>
+            <p className="text-sm text-muted-foreground">
+              Tell other growers about your experience with {currentPlant?.seller ?? 'this seller'}.
+            </p>
+          </div>
+        </div>
+        <StarRating value={reviewRating} onChange={setReviewRating} />
+      </div>
+
+      {showBackAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
+            <div className="mb-4 text-center">
+              <p className="mb-2 text-lg font-semibold">Are you sure you want to go back?</p>
+              <p className="text-sm text-gray-600">Some changes may be unsaved.</p>
+            </div>
+            <div className="flex justify-center gap-3">
+              <Button className="bg-green-600 text-white hover:bg-green-700" onClick={handleBackConfirm}>
+                Yes
+              </Button>
+              <Button
+                variant="outline"
+                className="border-green-600 text-green-600 hover:bg-green-50"
+                onClick={handleBackCancel}
+              >
+                No
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <Textarea
+          id="message"
+          rows={8}
+          value={reviewComment}
+          onChange={(e) => setReviewComment(e.target.value)}
+          placeholder="Share details about your experience with this seller..."
+          className="min-h-[200px]"
+        />
+        <Button
+          className="w-full rounded-full bg-green-600 py-3 text-base hover:bg-green-700"
+          onClick={handleReviewSubmit}
+          disabled={isSubmittingReview || reviewRating <= 0}
+        >
+          {isSubmittingReview ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Submitting...
+            </>
+          ) : (
+            'Submit review'
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderPageShell = (body: ReactNode, title: string, onBack: () => void) => (
+    <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col bg-background">
+      <div className="sticky top-0 z-20 flex items-center gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onBack}
+          className="h-10 w-10 rounded-full border border-border"
+        >
+          <ArrowLeft className="h-5 w-5" />
+          <span className="sr-only">Back to listings</span>
+        </Button>
+        <h1 className="flex-1 truncate text-lg font-semibold">{title}</h1>
+        <span className="hidden w-10 sm:block" aria-hidden="true" />
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">{body}</div>
+    </div>
+  );
+
+  const renderDrawer = () => (
+    <Drawer
+      open={isConversationOpen}
+      onOpenChange={(open) => {
+        setIsConversationOpen(open);
+        if (!open) {
+          setNewMessageBody('');
+        }
+      }}
+    >
       <DrawerContent className="sm:max-w-md">
         <DrawerHeader>
           <DrawerTitle>
@@ -933,7 +935,7 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
             className="flex max-h-[24rem] flex-col gap-3 overflow-y-auto pr-1"
           >
             {conversationThread?.messages && conversationThread.messages.length > 0 ? (
-              conversationThread.messages.map(message => {
+              conversationThread.messages.map((message) => {
                 const isBuyerMessage = message.senderType === 'buyer';
                 const isPending = message.status === 'pending';
                 const timestamp = message.createdAt
@@ -981,12 +983,12 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
             >
               {isSendingMessage ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Sending...
                 </>
               ) : (
                 <>
-                  <Send className="h-4 w-4 mr-2" />
+                  <Send className="mr-2 h-4 w-4" />
                   Send message
                 </>
               )}
@@ -994,7 +996,77 @@ export function PlantDetailModal({ plant, isOpen, onClose, onPlantUpdate }: Plan
           </div>
         </div>
       </DrawerContent>
-      </Drawer>
+    </Drawer>
+  );
+
+  if (isPagePresentation) {
+    const pageTitle = isReviewScreenOpen
+      ? `Review ${currentPlant?.name ?? 'listing'}`
+      : currentPlant?.name ?? 'Plant details';
+
+    const handleBackAction = () => {
+      if (isReviewScreenOpen) {
+        handleReviewBack(reviewComment, reviewRating);
+      } else {
+        handleClose();
+      }
+    };
+
+    const pageBody = isReviewScreenOpen ? renderReviewBody() : renderDefaultBody();
+
+    return (
+      <>
+        {renderPageShell(pageBody, pageTitle, handleBackAction)}
+        {isEditListingScreenOpen && (
+          <Dialog
+            open={isEditListingScreenOpen}
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen) {
+                setIsEditListingScreenOpen(false);
+              }
+            }}
+          >
+            <EditListingScreen
+              plant={currentPlant}
+              onCancel={() => setIsEditListingScreenOpen(false)}
+              onSave={handleListingSave}
+            />
+          </Dialog>
+        )}
+        {renderDrawer()}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            handleClose();
+          }
+        }}
+      >
+        {!isReviewScreenOpen && !isEditListingScreenOpen && (
+          <DialogContent className="max-w-5xl w-[calc(100vw-2rem)] overflow-y-auto px-4 py-6 sm:px-6 md:h-[85vh]">
+            {renderDefaultBody()}
+          </DialogContent>
+        )}
+        {isEditListingScreenOpen && !isReviewScreenOpen && (
+          <EditListingScreen
+            plant={currentPlant}
+            onCancel={() => setIsEditListingScreenOpen(false)}
+            onSave={handleListingSave}
+          />
+        )}
+        {isReviewScreenOpen && (
+          <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] overflow-y-auto px-4 py-6 sm:px-6">
+            {renderReviewBody()}
+          </DialogContent>
+        )}
+      </Dialog>
+      {renderDrawer()}
     </>
   );
 }

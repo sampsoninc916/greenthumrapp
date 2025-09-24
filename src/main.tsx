@@ -31,6 +31,7 @@ createRoot(document.getElementById('root')!).render(
             <Toaster richColors position="top-right" />
             <Routes>
               <Route path="/" element={<App />} />
+              <Route path="/plants/:plantId" element={<App />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/cart" element={<CartPage />} />
