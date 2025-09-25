@@ -31,11 +31,43 @@ import { useSeoMetadata } from './hooks/useSeoMetadata';
 import { SEO_DEFAULTS } from './constants/seo';
 import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
+import { Checkbox } from './components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from './components/ui/radio-group';
+import { EmailCaptureModal } from './components/EmailCaptureModal';
+import { emailService } from './services/email';
+import type { SubscriptionIncentive } from './services/email';
 
 const CreateNewPlantModal = lazy(() => import('./components/CreateNewPlantModal').then((module) => ({ default: module.CreateNewPlantModal })));
 const PlantDetailModal = lazy(() => import('./components/PlantDetailModal').then((module) => ({ default: module.PlantDetailModal })));
 
 const PLANTS_PAGE_SIZE = 20;
+
+type WaitlistIncentiveOption = 'discount' | 'care_kit';
+
+const WAITLIST_INCENTIVES: Record<WaitlistIncentiveOption, { title: string; description: string; serviceIncentive: SubscriptionIncentive }>
+  = {
+    discount: {
+      title: '15% off your first order',
+      description: 'We will send a single-use launch code as soon as the marketplace opens to the public.',
+      serviceIncentive: {
+        type: 'discount_code',
+        description: '15% launch discount for your first order.',
+        value: '15%',
+      },
+    },
+    care_kit: {
+      title: 'Propagation care kit',
+      description: 'Receive a limited propagation kit (rooting gel, humidity dome, and care cards) with your first purchase.',
+      serviceIncentive: {
+        type: 'care_kit',
+        description: 'Propagation care kit sent with your first qualifying purchase.',
+      },
+    },
+  };
+
+const WAITLIST_INCENTIVE_ENTRIES = Object.entries(WAITLIST_INCENTIVES) as Array<
+  [WaitlistIncentiveOption, (typeof WAITLIST_INCENTIVES)[WaitlistIncentiveOption]]
+>;
 
 const PlantCardSkeleton = () => {
   return (
@@ -93,6 +125,12 @@ const App = () => {
   const [totalAvailable, setTotalAvailable] = useState<number | null>(null);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [isSubmittingNewsletter, setIsSubmittingNewsletter] = useState(false);
+  const [newsletterConsent, setNewsletterConsent] = useState(false);
+  const [newsletterGdprConsent, setNewsletterGdprConsent] = useState(false);
+  const [selectedNewsletterPerk, setSelectedNewsletterPerk] = useState<WaitlistIncentiveOption>('discount');
+  const [isWaitlistModalOpen, setIsWaitlistModalOpen] = useState(false);
+  const [waitlistModalMode, setWaitlistModalMode] = useState<'join' | 'manage'>('join');
+  const [waitlistEmailPrefill, setWaitlistEmailPrefill] = useState('');
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { plantId } = useParams<{ plantId?: string }>();
@@ -198,6 +236,21 @@ const App = () => {
       observerRef.current?.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    void emailService.ensureTemplatesConfigured();
+  }, []);
+
+  const openWaitlistModal = useCallback((mode: 'join' | 'manage', prefill?: string) => {
+    setWaitlistModalMode(mode);
+    setWaitlistEmailPrefill(prefill ?? '');
+    setIsWaitlistModalOpen(true);
+  }, []);
+
+  const selectedIncentiveDetails = useMemo(
+    () => WAITLIST_INCENTIVES[selectedNewsletterPerk],
+    [selectedNewsletterPerk],
+  );
 
   const loadMoreTriggerRef = useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) {
@@ -438,23 +491,78 @@ const App = () => {
   }, []);
 
   const handleNewsletterSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
+    async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      if (!newsletterEmail.trim()) {
+      const trimmedEmail = newsletterEmail.trim().toLowerCase();
+
+      if (!trimmedEmail) {
         toast.error('Please add your email so we can send growing tips.');
         handleJoinNewsletterFocus();
         return;
       }
 
+      if (!newsletterConsent) {
+        toast.error('Please confirm you would like to receive the grower newsletter.');
+        return;
+      }
+
+      if (!newsletterGdprConsent) {
+        toast.error('We need your consent to store your details for email delivery.');
+        return;
+      }
+
       setIsSubmittingNewsletter(true);
-      window.setTimeout(() => {
-        setIsSubmittingNewsletter(false);
+
+      const consentTimestamp = new Date().toISOString();
+
+      try {
+        const response = await emailService.subscribeToMarketingList({
+          email: trimmedEmail,
+          source: 'landing-newsletter',
+          incentives: [selectedIncentiveDetails.serviceIncentive],
+          consent: {
+            email: trimmedEmail,
+            marketingConsent: true,
+            gdprConsent: true,
+            consentAt: consentTimestamp,
+            consentSource: 'landing-newsletter',
+            metadata: {
+              incentive: selectedNewsletterPerk,
+            },
+          },
+          metadata: {
+            channel: 'landing',
+            incentive: selectedNewsletterPerk,
+          },
+        });
+
+        await emailService.sendLifecycleEmail('waitlist_confirmation', {
+          email: trimmedEmail,
+          incentive: selectedNewsletterPerk,
+          channel: 'newsletter-section',
+        });
+
+        toast.success(response.message ?? 'Welcome to the Thumr grower circle!');
         setNewsletterEmail('');
-        toast.success('Welcome to the Thumr grower circle!');
-      }, 750);
+        setNewsletterConsent(false);
+        setNewsletterGdprConsent(false);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unable to join the grower circle right now. Please try again.';
+        toast.error(message);
+      } finally {
+        setIsSubmittingNewsletter(false);
+      }
     },
-    [handleJoinNewsletterFocus, newsletterEmail],
+    [
+      handleJoinNewsletterFocus,
+      newsletterEmail,
+      newsletterConsent,
+      newsletterGdprConsent,
+      selectedIncentiveDetails,
+      selectedNewsletterPerk,
+    ],
   );
 
   return (
@@ -518,17 +626,10 @@ const App = () => {
                       <Button
                         size="lg"
                         variant="secondary"
-                        onClick={() => {
-                          handleJoinNewsletterFocus();
-                          if (typeof window !== 'undefined') {
-                            window.requestAnimationFrame(() => {
-                              document.getElementById('newsletter-section')?.scrollIntoView({ behavior: 'smooth' });
-                            });
-                          }
-                        }}
+                        onClick={() => openWaitlistModal('join', newsletterEmail)}
                         className="bg-emerald-700 text-white hover:bg-emerald-600"
                       >
-                        Join the Newsletter
+                        Claim Launch Perks
                       </Button>
                     </div>
                   </div>
@@ -581,7 +682,7 @@ const App = () => {
                 <div className="space-y-4">
                   <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Join the grower circle</h2>
                   <p className="text-sm text-emerald-100 sm:text-base">
-                    Get exclusive access to propagation tutorials, seasonal care checklists, and curated drops from our most loved sellers.
+                    Get exclusive access to propagation tutorials, seasonal care checklists, and curated drops from our most loved sellers. Pick the launch perk you want as a thank-you for joining early.
                   </p>
                   <form className="space-y-4" onSubmit={handleNewsletterSubmit}>
                     <div className="space-y-2">
@@ -602,8 +703,70 @@ const App = () => {
                         We send one thoughtfully curated email a week. Unsubscribe anytime.
                       </p>
                     </div>
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200">Choose your perk</p>
+                      <RadioGroup
+                        value={selectedNewsletterPerk}
+                        onValueChange={(value) => setSelectedNewsletterPerk(value as WaitlistIncentiveOption)}
+                        className="space-y-2"
+                        aria-label="Select your launch perk"
+                      >
+                        {WAITLIST_INCENTIVE_ENTRIES.map(([key, details]) => (
+                          <Label
+                            key={key}
+                            htmlFor={`newsletter-perk-${key}`}
+                            className="cursor-pointer items-start gap-3 rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-3 text-sm text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-950/40"
+                          >
+                            <RadioGroupItem
+                              id={`newsletter-perk-${key}`}
+                              value={key}
+                              className="mt-1 border-emerald-300 text-emerald-300 data-[state=checked]:bg-emerald-300 data-[state=checked]:text-emerald-950"
+                            />
+                            <span className="space-y-1">
+                              <span className="block text-sm font-semibold text-white">{details.title}</span>
+                              <span className="block text-xs text-emerald-200">{details.description}</span>
+                            </span>
+                          </Label>
+                        ))}
+                      </RadioGroup>
+                    </div>
+                    <div className="space-y-3 rounded-xl border border-emerald-500/40 bg-emerald-950/20 p-3">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="newsletter-consent"
+                          checked={newsletterConsent}
+                          onCheckedChange={(checked) => setNewsletterConsent(checked === true)}
+                          className="mt-1 border-emerald-300 data-[state=checked]:bg-emerald-300 data-[state=checked]:text-emerald-950"
+                        />
+                        <Label htmlFor="newsletter-consent" className="cursor-pointer items-start text-xs text-emerald-100">
+                          Yes, send me the grower circle newsletter and launch incentives.
+                        </Label>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="newsletter-gdpr"
+                          checked={newsletterGdprConsent}
+                          onCheckedChange={(checked) => setNewsletterGdprConsent(checked === true)}
+                          className="mt-1 border-emerald-300 data-[state=checked]:bg-emerald-300 data-[state=checked]:text-emerald-950"
+                        />
+                        <Label htmlFor="newsletter-gdpr" className="cursor-pointer items-start text-xs text-emerald-100">
+                          I consent to Thumr storing my details so the perk and emails can be delivered. I can unsubscribe at any time.
+                        </Label>
+                      </div>
+                      <p className="text-xs text-emerald-200">
+                        We log consent with a timestamp and every email includes an unsubscribe link for immediate opt-out.
+                      </p>
+                    </div>
                     <Button type="submit" size="lg" className="w-full bg-emerald-500 text-emerald-950 hover:bg-emerald-400" disabled={isSubmittingNewsletter}>
-                      {isSubmittingNewsletter ? 'Joining...' : 'Join the Newsletter'}
+                      {isSubmittingNewsletter ? 'Claiming perk...' : 'Claim my launch perk'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="text-emerald-100 underline-offset-4 hover:text-emerald-50"
+                      onClick={() => openWaitlistModal('manage', newsletterEmail)}
+                    >
+                      Manage preferences or unsubscribe
                     </Button>
                   </form>
                 </div>
@@ -846,6 +1009,18 @@ const App = () => {
           />
         </Suspense>
       )}
+
+      <EmailCaptureModal
+        open={isWaitlistModalOpen}
+        mode={waitlistModalMode}
+        initialEmail={waitlistEmailPrefill || (newsletterEmail ? newsletterEmail : undefined)}
+        onOpenChange={(open) => {
+          setIsWaitlistModalOpen(open);
+          if (!open) {
+            setWaitlistEmailPrefill('');
+          }
+        }}
+      />
 
       <MobileActionBar onAddListing={handleAddListing} />
     </div>
