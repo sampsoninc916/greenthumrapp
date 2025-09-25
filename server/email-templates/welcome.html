@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Welcome to Thumr</title>
+    <style>
+      body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        background-color: #f2f7f3;
+        color: #1f3d2b;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 32px 24px;
+        background-color: #ffffff;
+        border-radius: 18px;
+      }
+      .cta-button {
+        display: inline-block;
+        margin-top: 24px;
+        padding: 14px 28px;
+        background-color: #2f855a;
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 600;
+        border-radius: 9999px;
+      }
+      .footnote {
+        margin-top: 32px;
+        font-size: 12px;
+        color: #4a5f52;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <p style="font-size: 14px; color: #4a5f52;">Hi {{fullName | default('there')}},</p>
+      <h1 style="font-size: 28px; margin: 0 0 16px;">Welcome to the Thumr grower circle 🌿</h1>
+      <p style="font-size: 16px; line-height: 1.5;">
+        We're thrilled you joined a community of passionate growers trading rare plants, swaps, and propagation tips.
+        Your account is all set—log in to explore listings, follow growers near you, and save plants to your wish list.
+      </p>
+      <p style="font-size: 16px; line-height: 1.5;">
+        {{#if incentive}}
+          We've reserved your <strong>{{incentive}}</strong> perk. Keep an eye on your inbox for instructions on how to
+          redeem it with your first order.
+        {{/if}}
+      </p>
+      <a class="cta-button" href="{{dashboardUrl}}">Visit your dashboard</a>
+      <p class="footnote">
+        You are receiving this email because you created a Thumr account. If this was not you or you prefer not to receive
+        emails from us, you can <a href="{{unsubscribeUrl}}">unsubscribe here</a> and we'll update your preferences immediately.
+      </p>
+    </div>
+  </body>
+</html>

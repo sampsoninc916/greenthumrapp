@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Thanks for joining the waitlist</title>
+    <style>
+      body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        background-color: #11221a;
+        color: #e6fff2;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        max-width: 620px;
+        margin: 0 auto;
+        padding: 32px 24px;
+      }
+      .card {
+        border-radius: 18px;
+        background: linear-gradient(160deg, rgba(38, 102, 71, 0.95), rgba(22, 63, 44, 0.95));
+        padding: 32px;
+      }
+      .footer {
+        margin-top: 28px;
+        font-size: 12px;
+        color: #b5d2c4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <p style="font-size: 14px; margin: 0 0 12px;">Hey {{firstName | default('grower')}},</p>
+        <h1 style="font-size: 26px; margin: 0 0 16px;">You’re on the Thumr waitlist! 🌱</h1>
+        <p style="line-height: 1.6;">
+          We saved your email and launch preference (<strong>{{incentive | default('launch perk')}}</strong>). Expect weekly
+          grower digest updates and a personal invite when the marketplace opens.
+        </p>
+        <ul style="line-height: 1.6; padding-left: 20px;">
+          <li>We’ll timestamp your consent and never share your details.</li>
+          <li>Your perk instructions will arrive as soon as we open the doors.</li>
+          <li>You can update preferences or unsubscribe instantly below.</li>
+        </ul>
+        <p style="margin-top: 24px;">
+          Need to make changes? <a href="{{managePreferencesUrl}}" style="color: #9fe8c4;">Manage your preferences</a> anytime.
+        </p>
+      </div>
+      <p class="footer">
+        You joined via the Thumr waitlist. Want out? <a href="{{unsubscribeUrl}}" style="color: #9fe8c4;">Unsubscribe here</a>
+        and we’ll update your consent immediately.
+      </p>
+    </div>
+  </body>
+</html>

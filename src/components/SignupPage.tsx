@@ -12,6 +12,36 @@ import { useAuth } from "../contexts/AuthContext";
 import { API_ENDPOINTS, SECURITY_CONFIG } from "../config/amplify";
 import { authService } from "../services/auth";
 import { analyticsService } from "../services/analytics";
+import { emailService } from "../services/email";
+import type { SubscriptionIncentive } from "../services/email";
+import { telemetryService } from "../services/telemetry";
+
+type SignupPerkOption = "credit" | "care_kit";
+
+const SIGNUP_PERKS: Record<SignupPerkOption, { title: string; description: string; incentive: SubscriptionIncentive }>
+  = {
+    credit: {
+      title: "$15 marketplace credit",
+      description: "Applies automatically after your first completed order as a welcome gift.",
+      incentive: {
+        type: "store_credit",
+        description: "$15 credit issued after first completed order.",
+        value: "$15",
+      },
+    },
+    care_kit: {
+      title: "Propagation care kit",
+      description: "We ship a rooting gel, humidity dome, and care guide with your first order.",
+      incentive: {
+        type: "care_kit",
+        description: "Propagation care kit included with first purchase.",
+      },
+    },
+  };
+
+const SIGNUP_PERK_ENTRIES = Object.entries(SIGNUP_PERKS) as Array<
+  [SignupPerkOption, (typeof SIGNUP_PERKS)[SignupPerkOption]]
+>;
 
 export function SignupPage() {
   const [name, setName] = useState("");
@@ -31,6 +61,7 @@ export function SignupPage() {
   const [privacyAcceptedAt, setPrivacyAcceptedAt] = useState<string | null>(null);
   const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(false);
   const [marketingSmsOptIn, setMarketingSmsOptIn] = useState(false);
+  const [selectedSignupPerk, setSelectedSignupPerk] = useState<SignupPerkOption>("credit");
   const navigate = useNavigate();
   const { signup, confirmSignup, login, isAuthenticated } = useAuth();
 
@@ -159,9 +190,85 @@ export function SignupPage() {
           requiresAuth: true
         });
       }
-      
+
       // Auto-login after successful confirmation
       await login(userName, password);
+
+      const normalizedEmail = email.trim().toLowerCase();
+      const consentTimestamp = privacyAcceptedAt ?? new Date().toISOString();
+
+      try {
+        if (marketingEmailOptIn) {
+          const perk = SIGNUP_PERKS[selectedSignupPerk];
+          await emailService.subscribeToMarketingList({
+            email: normalizedEmail,
+            fullName: name.trim() || undefined,
+            source: 'signup-flow',
+            tags: [
+              'signup',
+              selectedRole ? `role:${selectedRole}` : undefined,
+              marketingSmsOptIn ? 'sms-opt-in' : undefined,
+            ].filter(Boolean) as string[],
+            incentives: [perk.incentive],
+            consent: {
+              email: normalizedEmail,
+              marketingConsent: true,
+              gdprConsent: true,
+              consentAt: consentTimestamp,
+              consentSource: 'signup-flow',
+              metadata: {
+                perk: selectedSignupPerk,
+                smsOptIn: marketingSmsOptIn,
+              },
+            },
+            metadata: {
+              phone: phone || undefined,
+              perk: selectedSignupPerk,
+            },
+          });
+        } else if (normalizedEmail) {
+          await emailService.recordConsent({
+            email: normalizedEmail,
+            marketingConsent: false,
+            gdprConsent: true,
+            consentAt: consentTimestamp,
+            consentSource: 'signup-flow',
+            metadata: {
+              smsOptIn: marketingSmsOptIn,
+            },
+          });
+        }
+
+        if (normalizedEmail) {
+          await emailService.sendLifecycleEmail('welcome', {
+            email: normalizedEmail,
+            fullName: name,
+            incentive: marketingEmailOptIn ? selectedSignupPerk : undefined,
+          });
+
+          if (selectedRole === 'buyer') {
+            const reviewUrl = typeof window !== 'undefined'
+              ? `${window.location.origin}/account/reviews`
+              : '/account/reviews';
+            await emailService.scheduleReviewReminder(
+              {
+                email: normalizedEmail,
+                orderId: 'first-purchase-reminder',
+                reviewUrl,
+              },
+              14,
+            );
+          }
+        }
+      } catch (communicationError) {
+        telemetryService.captureException(communicationError, {
+          message: 'Failed to queue lifecycle emails after signup confirmation',
+          tags: {
+            feature: 'signup',
+            operation: 'post-confirm-email',
+          },
+        });
+      }
 
       setConfirm(true);
       setSuccess(false);
@@ -199,6 +306,15 @@ export function SignupPage() {
             <h2 className="text-gray-900" style={{ fontSize: '18px', fontWeight: 500, lineHeight: '1.4' }}>
               Signup for Thumr
             </h2>
+          </div>
+
+          <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-left text-sm text-green-900">
+            <h3 className="text-base font-semibold text-green-800">Early grower perks</h3>
+            <ul className="mt-2 space-y-1 text-left">
+              <li>• Choose between $15 marketplace credit or a propagation care kit when you opt into emails.</li>
+              <li>• We log GDPR-compliant consent and email a welcome playbook with your chosen perk.</li>
+              <li>• Prefer not to get marketing? You can unsubscribe with one click from any email.</li>
+            </ul>
           </div>
 
           {/* Input */}
@@ -326,15 +442,48 @@ export function SignupPage() {
                     Email updates
                   </Label>
                   <p className="text-xs text-gray-500">
-                    Get seasonal tips, product launches, and curated plant guides.
+                    Get seasonal tips, product launches, curated plant guides, and unlock a welcome perk when you opt in.
                   </p>
                 </div>
                 <Switch
                   id="marketing-email"
                   checked={marketingEmailOptIn}
-                  onCheckedChange={(checked) => setMarketingEmailOptIn(checked)}
+                  onCheckedChange={(checked) => {
+                    setMarketingEmailOptIn(checked);
+                    if (!checked) {
+                      setSelectedSignupPerk("credit");
+                    }
+                  }}
                 />
               </div>
+              {marketingEmailOptIn && (
+                <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+                    Choose your welcome perk
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    {SIGNUP_PERK_ENTRIES.map(([perkKey, perk]) => (
+                      <button
+                        key={perkKey}
+                        type="button"
+                        onClick={() => setSelectedSignupPerk(perkKey)}
+                        className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                          selectedSignupPerk === perkKey
+                            ? "border-green-600 bg-white text-green-700 shadow-sm"
+                            : "border-green-200 bg-green-100/60 text-green-700 hover:border-green-400"
+                        }`}
+                        aria-pressed={selectedSignupPerk === perkKey}
+                      >
+                        <span className="block font-semibold">{perk.title}</span>
+                        <span className="mt-1 block text-xs text-green-700">{perk.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-green-700">
+                    We capture consent with a timestamp and send instructions in your welcome email.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
                   <Label htmlFor="marketing-sms" className="text-sm font-medium text-gray-700">
