@@ -15,6 +15,9 @@ export interface PresignedUploadTarget {
   headers?: Record<string, string>;
 }
 
+export const MAX_UPLOAD_FILE_BYTES = 50 * 1024 * 1024;
+export const MAX_BATCH_UPLOAD_BYTES = 200 * 1024 * 1024;
+
 interface PresignResponseBody {
   uploads?: unknown;
 }
@@ -84,15 +87,40 @@ class UploadsService {
       return [];
     }
 
+    const largestFile = files.reduce<PresignUploadRequestItem | null>((current, file) => {
+      if (!current || file.contentLength > current.contentLength) {
+        return file;
+      }
+      return current;
+    }, null);
+
+    if (largestFile && largestFile.contentLength > MAX_UPLOAD_FILE_BYTES) {
+      const maxMb = Math.floor(MAX_UPLOAD_FILE_BYTES / (1024 * 1024));
+      throw new Error(
+        `"${largestFile.fileName}" is larger than the maximum allowed upload size of ${maxMb}MB.`,
+      );
+    }
+
+    const totalBytes = files.reduce((acc, file) => acc + (file.contentLength || 0), 0);
+    if (totalBytes > MAX_BATCH_UPLOAD_BYTES) {
+      const maxMb = Math.floor(MAX_BATCH_UPLOAD_BYTES / (1024 * 1024));
+      throw new Error(`Upload batch exceeds the ${maxMb}MB limit. Upload fewer files at once.`);
+    }
+
     if (!API_ENDPOINTS.UPLOADS_CREATE) {
       throw new Error('Upload endpoint is not configured.');
     }
+
+    const headers = new Headers();
+    headers.set('X-Upload-Total-Bytes', String(totalBytes));
+    headers.set('X-Upload-Max-File-Bytes', String(MAX_UPLOAD_FILE_BYTES));
 
     const response = await authService.authenticatedFetch(API_ENDPOINTS.UPLOADS_CREATE, {
       method: 'POST',
       body: JSON.stringify({ files }),
       requiresAuth: true,
       parseAs: 'json',
+      headers,
     });
 
     if (!response.ok) {
