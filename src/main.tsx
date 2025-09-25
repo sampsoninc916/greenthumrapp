@@ -9,6 +9,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { CartProvider } from './contexts/CartContext';
 import { Toaster } from 'sonner';
 import { AdminRoute } from './components/AdminRoute';
+import { telemetryService } from './services/telemetry';
 
 const SignupPage = lazy(() => import('./components/SignupPage').then((module) => ({ default: module.SignupPage })));
 const LoginPage = lazy(() => import('./components/LoginPage').then((module) => ({ default: module.LoginPage })));
@@ -55,6 +56,8 @@ const PageLoadingFallback = () => (
     <span className="text-sm text-muted-foreground">Loading page...</span>
   </div>
 );
+
+telemetryService.initialize();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

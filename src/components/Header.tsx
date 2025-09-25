@@ -22,6 +22,7 @@ import GreenThumrLogo from './assets/ThumrCircleLogo.png';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { formatCurrency } from '../utils/currency';
+import { telemetryService } from '../services/telemetry';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,7 +96,13 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
     try {
       await logout();
     } catch (error) {
-      console.error('Failed to logout', error);
+      telemetryService.captureException(error, {
+        message: 'Failed to logout',
+        tags: {
+          feature: 'auth',
+          operation: 'logout',
+        },
+      });
     }
     navigate('/');
   };

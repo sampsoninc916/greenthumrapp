@@ -18,6 +18,7 @@ import {
   deleteUser
 } from 'aws-amplify/auth';
 import { configureAmplify, SECURITY_CONFIG } from '../config/amplify';
+import { telemetryService } from '../services/telemetry';
 
 // Configure Amplify once
 configureAmplify();
@@ -104,7 +105,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     if (!SECURITY_CONFIG.TOKEN_EXCHANGE_ENDPOINT) {
-      console.error('Token exchange strategy selected but TOKEN_EXCHANGE_ENDPOINT is not configured.');
+      telemetryService.captureMessage(
+        'Token exchange strategy selected but TOKEN_EXCHANGE_ENDPOINT is not configured.',
+        {
+          level: 'error',
+          tags: {
+            feature: 'auth',
+            operation: 'token-exchange',
+          },
+        }
+      );
       return false;
     }
 
@@ -124,13 +134,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (!response.ok) {
-        console.error('Token exchange endpoint responded with status', response.status);
+        telemetryService.captureMessage('Token exchange endpoint responded with non-success status.', {
+          level: 'error',
+          tags: {
+            feature: 'auth',
+            operation: 'token-exchange',
+          },
+          extra: {
+            status: response.status,
+          },
+        });
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Failed to exchange Cognito tokens for secure session cookies:', error);
+      telemetryService.captureException(error, {
+        message: 'Failed to exchange Cognito tokens for secure session cookies',
+        tags: {
+          feature: 'auth',
+          operation: 'token-exchange',
+        },
+      });
       return false;
     }
   }, []);
@@ -199,7 +224,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         credentials: 'include'
       });
     } catch (error) {
-      console.error('Failed to clear secure session cookie:', error);
+      telemetryService.captureException(error, {
+        message: 'Failed to clear secure session cookie',
+        tags: {
+          feature: 'auth',
+          operation: 'session-clear',
+        },
+      });
     }
   }, []);
 
@@ -207,7 +238,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await signOut({ global: true });
     } catch (error) {
-      console.error('Global sign-out error:', error);
+      telemetryService.captureException(error, {
+        message: 'Global sign-out error',
+        tags: {
+          feature: 'auth',
+          operation: 'signout',
+        },
+      });
     } finally {
       await clearSecureSession();
       clearClientState();
@@ -249,7 +286,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const session = await fetchAuthSession({ forceRefresh: true });
       await handleSessionUpdate(session);
     } catch (error) {
-      console.error('Token refresh error:', error);
+      telemetryService.captureException(error, {
+        message: 'Token refresh error',
+        tags: {
+          feature: 'auth',
+          operation: 'token-refresh',
+        },
+      });
       await performSignOut();
     }
   }, [handleSessionUpdate, performSignOut]);
@@ -299,7 +342,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await loadUserSession();
       }
     } catch (error) {
-      console.error('Login error:', error);
+      telemetryService.captureException(error, {
+        message: 'Login error',
+        tags: {
+          feature: 'auth',
+          operation: 'login',
+        },
+      });
       throw error;
     }
   }, [loadUserSession]);
@@ -323,7 +372,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       });
     } catch (error) {
-      console.error('Signup error:', error);
+      telemetryService.captureException(error, {
+        message: 'Signup error',
+        tags: {
+          feature: 'auth',
+          operation: 'signup',
+        },
+        extra: {
+          username,
+          role,
+        },
+      });
       throw error;
     }
   }, []);
@@ -332,7 +391,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await confirmSignUp({ username, confirmationCode: code });
     } catch (error) {
-      console.error('Confirmation error:', error);
+      telemetryService.captureException(error, {
+        message: 'Confirmation error',
+        tags: {
+          feature: 'auth',
+          operation: 'confirm-signup',
+        },
+        extra: {
+          username,
+        },
+      });
       throw error;
     }
   }, []);
@@ -346,7 +414,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         clearClientState();
       }
     } catch (error) {
-      console.error('Error deleting user:', error);
+      telemetryService.captureException(error, {
+        message: 'Error deleting user',
+        tags: {
+          feature: 'auth',
+          operation: 'delete-account',
+        },
+      });
       throw error;
     }
   }, [clearClientState, clearSecureSession]);

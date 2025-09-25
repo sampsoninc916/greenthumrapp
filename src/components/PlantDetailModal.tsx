@@ -38,6 +38,7 @@ import { reviewsService } from '../services/reviews';
 import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { analyticsService } from '../services/analytics';
+import { telemetryService } from '../services/telemetry';
 import {
   DELIVERY_METHOD_LABEL_LOOKUP,
   extractStateCode,
@@ -160,7 +161,16 @@ export function PlantDetailModal({
       try {
         await messagesService.markThreadRead(conversationThread.id);
       } catch (error) {
-        console.error('Failed to mark conversation as read', error);
+        telemetryService.captureException(error, {
+          message: 'Failed to mark conversation as read',
+          tags: {
+            feature: 'messages',
+            operation: 'mark-read',
+          },
+          extra: {
+            threadId: conversationThread.id,
+          },
+        });
       }
     };
 
@@ -369,7 +379,16 @@ export function PlantDetailModal({
       try {
         await messagesService.markThreadRead(normalizedThread.id);
       } catch (error) {
-        console.error('Failed to mark conversation as read', error);
+        telemetryService.captureException(error, {
+          message: 'Failed to mark conversation as read',
+          tags: {
+            feature: 'messages',
+            operation: 'mark-read',
+          },
+          extra: {
+            threadId: normalizedThread.id,
+          },
+        });
       }
 
       navigate(`/messages/${normalizedThread.id}`, {
@@ -669,7 +688,17 @@ export function PlantDetailModal({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to save changes. Please try again.';
-      console.error('Error saving changes:', error);
+      telemetryService.captureException(error, {
+        message: 'Error saving changes',
+        tags: {
+          feature: 'listing',
+          operation: 'update',
+        },
+        extra: {
+          plantId: updatedPlant.id,
+          changedFields: Array.from(changedFields),
+        },
+      });
       toast.error(message);
       throw new Error(message);
     }

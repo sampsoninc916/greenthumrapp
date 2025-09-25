@@ -16,6 +16,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { toast } from 'sonner';
 import { isPlantResponseDto, type PlantResponseDto } from './interfaces/dtos';
 import { Skeleton } from './components/ui/skeleton';
+import { telemetryService } from './services/telemetry';
 
 const CreateNewPlantModal = lazy(() => import('./components/CreateNewPlantModal').then((module) => ({ default: module.CreateNewPlantModal })));
 const PlantDetailModal = lazy(() => import('./components/PlantDetailModal').then((module) => ({ default: module.PlantDetailModal })));
@@ -148,7 +149,17 @@ const App = () => {
       setTotalAvailable(response.totalItems ?? null);
       setError(false);
     } catch (err) {
-      console.error('Error fetching plants:', err);
+      telemetryService.captureException(err, {
+        message: 'Error fetching plants',
+        tags: {
+          feature: 'plants',
+          operation: 'list',
+        },
+        extra: {
+          page,
+          cursor,
+        },
+      });
       setError(true);
       toast.error('Unable to load plant listings. Please try again.');
     } finally {

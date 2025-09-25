@@ -1,6 +1,7 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { API_ENDPOINTS, SECURITY_CONFIG } from '../config/amplify';
 import { createDeserializationError, httpClient, logApiError } from './httpClient';
+import { telemetryService } from './telemetry';
 
 type UserRole = 'buyer' | 'seller' | 'admin';
 
@@ -365,7 +366,13 @@ class AuthService {
   ): Promise<{ token: string; role: UserRole | null; userId: string | null } | null> {
     if (SECURITY_CONFIG.SESSION_STRATEGY === 'token-exchange') {
       if (!SECURITY_CONFIG.SESSION_TOKEN_ENDPOINT) {
-        console.error('SESSION_TOKEN_ENDPOINT is not configured for token-exchange strategy.');
+        telemetryService.captureMessage('SESSION_TOKEN_ENDPOINT is not configured for token-exchange strategy.', {
+          level: 'error',
+          tags: {
+            feature: 'auth',
+            operation: 'session-token',
+          },
+        });
         return null;
       }
 
@@ -380,14 +387,35 @@ class AuthService {
         });
 
         if (!response.ok) {
-          console.error(`Token retrieval endpoint responded with status ${response.status}`);
+          telemetryService.captureMessage('Token retrieval endpoint responded with unexpected status.', {
+            level: 'error',
+            tags: {
+              feature: 'auth',
+              operation: 'session-token',
+            },
+            extra: {
+              status: response.status,
+              endpoint,
+              forceRefresh,
+            },
+          });
           return null;
         }
 
         const data = (await response.json()) as { token?: string; role?: unknown };
 
         if (!data || typeof data.token !== 'string') {
-          console.error('Token retrieval endpoint did not return a usable token.');
+          telemetryService.captureMessage('Token retrieval endpoint did not return a usable token.', {
+            level: 'error',
+            tags: {
+              feature: 'auth',
+              operation: 'session-token',
+            },
+            extra: {
+              endpoint,
+              responseShape: data,
+            },
+          });
           return null;
         }
 
@@ -402,7 +430,17 @@ class AuthService {
           userId: derivedUserId ?? null
         };
       } catch (error) {
-        console.error('Error retrieving token from secure session:', error);
+        telemetryService.captureException(error, {
+          message: 'Error retrieving token from secure session',
+          tags: {
+            feature: 'auth',
+            operation: 'session-token',
+          },
+          extra: {
+            endpoint,
+            forceRefresh,
+          },
+        });
         return null;
       }
     }
@@ -430,7 +468,16 @@ class AuthService {
         userId: derivedUserId ?? null
       };
     } catch (error) {
-      console.error('Error getting token:', error);
+      telemetryService.captureException(error, {
+        message: 'Error getting token',
+        tags: {
+          feature: 'auth',
+          operation: 'session-token',
+        },
+        extra: {
+          forceRefresh,
+        },
+      });
       return null;
     }
   }
@@ -577,7 +624,13 @@ class AuthService {
       }
       return null;
     } catch (error) {
-      console.error('Error getting user info:', error);
+      telemetryService.captureException(error, {
+        message: 'Error getting user info',
+        tags: {
+          feature: 'auth',
+          operation: 'get-user-info',
+        },
+      });
       return null;
     }
   }

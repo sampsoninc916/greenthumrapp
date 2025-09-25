@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { messagesService } from '../services/messages';
+import { telemetryService } from '../services/telemetry';
 
 export function useUnreadConversations(pollInterval: number = 60000) {
   const { isAuthenticated } = useAuth();
@@ -24,7 +25,13 @@ export function useUnreadConversations(pollInterval: number = 60000) {
           setUnreadCount(count);
         }
       } catch (error) {
-        console.error('Failed to load unread conversations', error);
+        telemetryService.captureException(error, {
+          message: 'Failed to load unread conversations',
+          tags: {
+            feature: 'messages',
+            operation: 'fetch-unread-count',
+          },
+        });
       }
     };
 

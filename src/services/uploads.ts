@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from '../config/amplify';
 import { authService } from './auth';
+import { telemetryService } from './telemetry';
 
 export interface PresignUploadRequestItem {
   clientUploadId: string;
@@ -154,7 +155,16 @@ class UploadsService {
         console.warn('Upload cleanup request failed.', { status: response.status });
       }
     } catch (error) {
-      console.error('Failed to clean up uploaded media keys after error.', error);
+      telemetryService.captureException(error, {
+        message: 'Failed to clean up uploaded media keys after error',
+        tags: {
+          feature: 'uploads',
+          operation: 'cleanup',
+        },
+        extra: {
+          keyCount: keys.length,
+        },
+      });
     }
   }
 }

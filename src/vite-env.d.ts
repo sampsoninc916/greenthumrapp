@@ -11,6 +11,13 @@ interface ImportMetaEnv {
   VITE_API_USERS_READ: string;
   VITE_API_USERS_WRITE: string;
   VITE_API_USERS_UPDATE: string;
+  VITE_TELEMETRY_DSN?: string;
+  VITE_TELEMETRY_ENVIRONMENT?: string;
+  VITE_APP_RELEASE?: string;
+  VITE_APP_VERSION?: string;
+  VITE_TELEMETRY_ALERT_TOKEN?: string;
+  VITE_TELEMETRY_ALERT_ORG?: string;
+  VITE_TELEMETRY_ALERT_PROJECT?: string;
 }
 
 interface ImportMeta {

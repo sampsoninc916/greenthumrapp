@@ -30,6 +30,7 @@ import { normalizePlantRecord } from '../utils/plants';
 import { isPlantResponseDto } from '../interfaces/dtos';
 import { compressImageIfNeeded } from '../utils/imageCompression';
 import { analyticsService } from '../services/analytics';
+import { telemetryService } from '../services/telemetry';
 
 type FieldName =
   | 'images'
@@ -511,7 +512,16 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
         const message = 'Unable to complete security checks for your images. Please try again.';
         setFieldError('images', message);
         toast.error(message);
-        console.error('Upload security scan failed', error);
+        telemetryService.captureException(error, {
+          message: 'Upload security scan failed',
+          tags: {
+            feature: 'listing',
+            operation: 'upload-security-scan',
+          },
+          extra: {
+            fileCount: candidateFiles.length,
+          },
+        });
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -1321,7 +1331,17 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
       const message = error instanceof Error ? error.message : 'Failed to create listing';
       setSubmissionError(message);
       toast.error(message);
-      console.error('Error creating listing:', error);
+      telemetryService.captureException(error, {
+        message: 'Error creating listing',
+        tags: {
+          feature: 'listing',
+          operation: 'create',
+        },
+        extra: {
+          plantName: formState.plantName,
+          imageCount: images.length,
+        },
+      });
     } finally {
       resetUploadState();
       setIsSubmitting(false);
