@@ -5,6 +5,7 @@ import { useCart } from '../../contexts/CartContext';
 import type { OrderConfirmationState } from '../../interfaces/Checkout';
 import { formatCurrency } from '../../utils/currency';
 import { buildComplianceContext, getComplianceHighlights } from '../../utils/compliance';
+import { analyticsService } from '../../services/analytics';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Separator } from '../ui/separator';
@@ -20,6 +21,36 @@ export const OrderConfirmationPage = () => {
   useEffect(() => {
     clearCart();
   }, [clearCart]);
+
+  useEffect(() => {
+    if (!orderState) {
+      return;
+    }
+
+    analyticsService.trackPurchaseCompleted({
+      orderId: orderState.orderId,
+      total: orderState.totals.total,
+      itemCount: orderState.totals.itemCount,
+      deliveryMethod: orderState.deliveryOption?.id ?? null,
+      paymentMethod: 'card',
+    });
+  }, [orderState]);
+
+  const formattedTotals = useMemo(() => {
+    if (!orderState) {
+      return {
+        subtotal: formatCurrency(0),
+        delivery: formatCurrency(0),
+        total: formatCurrency(0),
+      };
+    }
+
+    return {
+      subtotal: formatCurrency(orderState.totals.subtotal),
+      delivery: formatCurrency(orderState.totals.delivery),
+      total: formatCurrency(orderState.totals.total),
+    };
+  }, [orderState]);
 
   if (!orderState) {
     return (
@@ -46,15 +77,6 @@ export const OrderConfirmationPage = () => {
   }
 
   const { orderId, address, totals, items, deliveryOption, placedAt } = orderState;
-
-  const formattedTotals = useMemo(
-    () => ({
-      subtotal: formatCurrency(totals.subtotal),
-      delivery: formatCurrency(totals.delivery),
-      total: formatCurrency(totals.total)
-    }),
-    [totals]
-  );
 
   const placedDate = new Date(placedAt);
   const formattedPlacedDate = Number.isNaN(placedDate.getTime())

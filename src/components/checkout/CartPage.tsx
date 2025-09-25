@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { useCart, type DeliveryMethod } from '../../contexts/CartContext';
 import { formatCurrency } from '../../utils/currency';
+import { analyticsService } from '../../services/analytics';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
@@ -35,6 +36,28 @@ export const CartPage = () => {
     }),
     [totals]
   );
+
+  const handleCheckoutNavigation = () => {
+    analyticsService.trackCheckoutStarted({
+      total: totals.total,
+      itemCount: totals.itemCount,
+      deliveryMethod: selectedDeliveryOption?.id ?? deliveryOptions[0]?.id ?? null,
+    });
+    navigate('/checkout');
+  };
+
+  const handleDeliveryOptionChange = (value: string) => {
+    const nextMethod = value as DeliveryMethod;
+
+    if (nextMethod !== selectedDeliveryOption?.id) {
+      analyticsService.trackDeliveryOptionSelected({
+        deliveryMethod: nextMethod,
+        previousMethod: selectedDeliveryOption?.id ?? undefined,
+      });
+    }
+
+    setDeliveryOption(nextMethod);
+  };
 
   if (cartIsEmpty) {
     return (
@@ -74,7 +97,7 @@ export const CartPage = () => {
             <Button variant="outline" onClick={() => navigate('/')}>Continue shopping</Button>
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => navigate('/checkout')}
+              onClick={handleCheckoutNavigation}
             >
               Proceed to checkout
             </Button>
@@ -129,15 +152,43 @@ export const CartPage = () => {
                           className="w-24"
                           value={item.quantity}
                           onChange={(event) => {
-                            const nextQuantity = Number.parseInt(event.target.value, 10);
-                            updateItemQuantity(item.plant.id, Number.isNaN(nextQuantity) ? item.quantity : nextQuantity);
+                            const parsedQuantity = Number.parseInt(event.target.value, 10);
+                            const nextQuantity = Number.isNaN(parsedQuantity) ? item.quantity : parsedQuantity;
+
+                            if (nextQuantity !== item.quantity) {
+                              analyticsService.trackCartQuantityUpdated({
+                                plantId: item.plant.id,
+                                plantName: item.plant.name,
+                                price: item.plant.price,
+                                sellerId: item.plant.sellerId,
+                                category: item.plant.category,
+                                location: item.plant.location,
+                                quantity: nextQuantity,
+                                previousQuantity: item.quantity,
+                                nextQuantity,
+                              });
+                            }
+
+                            updateItemQuantity(item.plant.id, nextQuantity);
                           }}
                         />
                         <Button
                           variant="ghost"
                           size="sm"
                           className="text-red-600"
-                          onClick={() => removeItem(item.plant.id)}
+                          onClick={() => {
+                            analyticsService.trackCartItemRemoved({
+                              plantId: item.plant.id,
+                              plantName: item.plant.name,
+                              price: item.plant.price,
+                              sellerId: item.plant.sellerId,
+                              category: item.plant.category,
+                              location: item.plant.location,
+                              quantity: item.quantity,
+                              actionContext: 'cart_page',
+                            });
+                            removeItem(item.plant.id);
+                          }}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
                           Remove
@@ -160,7 +211,7 @@ export const CartPage = () => {
               <CardContent className="space-y-4">
                 <RadioGroup
                   value={deliveryValue}
-                  onValueChange={(value) => setDeliveryOption(value as DeliveryMethod)}
+                  onValueChange={handleDeliveryOptionChange}
                 >
                   {deliveryOptions.map((option) => (
                     <Label
