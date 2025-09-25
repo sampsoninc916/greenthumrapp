@@ -712,3 +712,171 @@ export const apiClient = {
     });
   },
 };
+
+const DEFAULT_PAGE_SIZE = 20;
+
+const toFiniteNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const toBooleanOrNull = (value: unknown): boolean | null => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+  return null;
+};
+
+const toPositiveInteger = (value: unknown, fallback: number): number => {
+  const parsed = toFiniteNumber(value);
+  if (parsed !== null && parsed > 0) {
+    return Math.floor(parsed);
+  }
+  return fallback;
+};
+
+const extractItems = <T>(payload: Record<string, unknown>): T[] => {
+  const candidates = ['items', 'data', 'results'];
+  for (const key of candidates) {
+    const value = payload[key];
+    if (Array.isArray(value)) {
+      return value as T[];
+    }
+  }
+  return [];
+};
+
+export interface PaginatedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems?: number;
+  totalPages?: number;
+  hasMore: boolean;
+  nextPage: number | null;
+  cursor: string | null;
+}
+
+export interface PlantListParams extends Record<string, unknown> {
+  page?: number;
+  pageSize?: number;
+  limit?: number;
+  cursor?: string | null;
+}
+
+const normalizePaginatedPayload = <T>(
+  payload: unknown,
+  fallbackPage: number,
+  fallbackPageSize: number,
+): PaginatedResult<T> => {
+  const base: PaginatedResult<T> = {
+    items: Array.isArray(payload) ? (payload as T[]) : [],
+    page: fallbackPage,
+    pageSize: fallbackPageSize,
+    totalItems: undefined,
+    totalPages: undefined,
+    hasMore: false,
+    nextPage: null,
+    cursor: null,
+  };
+
+  if (!payload) {
+    return base;
+  }
+
+  if (Array.isArray(payload)) {
+    const hasMore = payload.length >= fallbackPageSize;
+    return {
+      ...base,
+      hasMore,
+      nextPage: hasMore ? fallbackPage + 1 : null,
+    };
+  }
+
+  if (typeof payload === 'object') {
+    const record = payload as Record<string, unknown>;
+    const items = extractItems<T>(record);
+    const page = toFiniteNumber(record.page) ?? toFiniteNumber(record.currentPage) ?? fallbackPage;
+    const pageSize = toPositiveInteger(record.pageSize ?? record.perPage ?? record.limit, fallbackPageSize);
+    const totalItems = toFiniteNumber(record.total ?? record.totalItems ?? record.count) ?? undefined;
+    const totalPages = toFiniteNumber(record.totalPages ?? record.pageCount) ?? undefined;
+    const hasMoreFlag = toBooleanOrNull(record.hasMore);
+    const explicitNextPage = toFiniteNumber(record.nextPage);
+    const inferredHasMore =
+      hasMoreFlag ??
+      (typeof explicitNextPage === 'number'
+        ? true
+        : totalPages !== undefined
+          ? page < totalPages
+          : totalItems !== undefined
+            ? page * pageSize < totalItems
+            : items.length >= pageSize);
+
+    const cursorValue =
+      typeof record.nextCursor === 'string'
+        ? record.nextCursor
+        : typeof record.cursor === 'string'
+          ? record.cursor
+          : null;
+
+    return {
+      items,
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
+      hasMore: inferredHasMore,
+      nextPage: explicitNextPage !== null && explicitNextPage !== undefined
+        ? Math.max(1, Math.floor(explicitNextPage))
+        : inferredHasMore
+          ? page + 1
+          : null,
+      cursor: cursorValue,
+    };
+  }
+
+  return base;
+};
+
+export const plantApi = {
+  list: async <T = unknown>(
+    params?: PlantListParams,
+    options?: Omit<GetOptions, 'params'>,
+  ): Promise<PaginatedResult<T>> => {
+    const { page = 1, pageSize, limit, cursor, ...rest } = params ?? {};
+    const effectivePageSize = toPositiveInteger(pageSize ?? limit, DEFAULT_PAGE_SIZE);
+
+    const queryParams: QueryParams = {
+      ...rest,
+      page,
+      pageSize: effectivePageSize,
+    };
+
+    if (cursor) {
+      queryParams.cursor = cursor;
+    }
+
+    const result = await apiClient.get<unknown>(API_ENDPOINTS.PLANTS_READ, {
+      ...(options ?? {}),
+      requiresAuth: options?.requiresAuth ?? false,
+      params: queryParams,
+    });
+
+    return normalizePaginatedPayload<T>(result.data, page, effectivePageSize);
+  },
+};
