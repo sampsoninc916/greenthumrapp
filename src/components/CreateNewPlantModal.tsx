@@ -94,11 +94,11 @@ interface UploadReadyImage extends PlantImageFile {
   wasCompressed: boolean;
 }
 
-const runWithConcurrency = async <T>(
+const runWithConcurrency = async function <T>(
   items: T[],
   limit: number,
-  worker: (item: T, index: number) => Promise<void>,
-): Promise<void> => {
+  worker: (item: T, index: number) => Promise<void>
+): Promise<void> {
   if (items.length === 0) {
     return;
   }
