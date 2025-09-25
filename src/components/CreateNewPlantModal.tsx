@@ -12,7 +12,7 @@ import { Textarea } from './ui/textarea';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
-import { uploadsService } from '../services/uploads';
+import { uploadsService, MAX_UPLOAD_FILE_BYTES } from '../services/uploads';
 import type { PresignedUploadTarget } from '../services/uploads';
 import { API_ENDPOINTS } from '../config/amplify';
 import type { DeliveryMethod, LivePlantWarranty } from '../interfaces/Plant';
@@ -28,6 +28,8 @@ import {
 import { parseRestrictedStatesInput } from '../utils/compliance';
 import { normalizePlantRecord } from '../utils/plants';
 import { isPlantResponseDto } from '../interfaces/dtos';
+import { compressImageIfNeeded } from '../utils/imageCompression';
+import { analyticsService } from '../services/analytics';
 
 type FieldName =
   | 'images'
@@ -62,7 +64,7 @@ interface UploadProgressEntry {
   totalBytes: number;
 }
 
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = MAX_UPLOAD_FILE_BYTES;
 const MAX_FILE_SIZE_MB = Math.round(MAX_FILE_SIZE_BYTES / (1024 * 1024));
 const ALLOWED_IMAGE_TYPES = [
   'image/jpeg',
@@ -78,6 +80,53 @@ const MAX_IMAGE_COUNT = 10;
 const MIN_IMAGE_WIDTH = 600;
 const MIN_IMAGE_HEIGHT = 600;
 const MIN_IMAGE_DIMENSION_LABEL = `${MIN_IMAGE_WIDTH}x${MIN_IMAGE_HEIGHT}px`;
+const MAX_CONCURRENT_UPLOADS = 3;
+const COMPRESSION_SETTINGS = {
+  maxWidth: 2800,
+  maxHeight: 2800,
+  quality: 0.82,
+  minBytesSaved: 32 * 1024,
+} as const;
+
+interface UploadReadyImage extends PlantImageFile {
+  optimizedBytes: number;
+  originalBytes: number;
+  wasCompressed: boolean;
+}
+
+const runWithConcurrency = async <T>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<void>,
+): Promise<void> => {
+  if (items.length === 0) {
+    return;
+  }
+
+  let nextIndex = 0;
+  const maxWorkers = Math.max(1, Math.min(limit, items.length));
+
+  const takeNext = (): number | null => {
+    if (nextIndex >= items.length) {
+      return null;
+    }
+    const current = nextIndex;
+    nextIndex += 1;
+    return current;
+  };
+
+  const workers: Promise<void>[] = Array.from({ length: maxWorkers }, async () => {
+    while (true) {
+      const currentIndex = takeNext();
+      if (currentIndex === null) {
+        return;
+      }
+      await worker(items[currentIndex], currentIndex);
+    }
+  });
+
+  await Promise.all(workers);
+};
 
 interface UploadScanResult {
   fileName: string;
@@ -884,9 +933,53 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
     const imagesToUpload = [...images];
 
     setUploadStatus('Preparing uploads…');
+
+    const compressionStart = performance.now();
+    const optimizedImages: UploadReadyImage[] = [];
+    let totalOriginalBytes = 0;
+    let totalOptimizedBytes = 0;
+
+    for (const image of imagesToUpload) {
+      totalOriginalBytes += image.file.size;
+
+      try {
+        const { file: optimizedFile, wasCompressed } = await compressImageIfNeeded(image.file, COMPRESSION_SETTINGS);
+        optimizedImages.push({
+          ...image,
+          file: optimizedFile,
+          originalBytes: image.file.size,
+          optimizedBytes: optimizedFile.size,
+          wasCompressed,
+        });
+        totalOptimizedBytes += optimizedFile.size;
+      } catch (compressionError) {
+        console.warn('Image compression failed; using original file.', {
+          fileName: image.file.name,
+          error: compressionError,
+        });
+        optimizedImages.push({
+          ...image,
+          originalBytes: image.file.size,
+          optimizedBytes: image.file.size,
+          wasCompressed: false,
+        });
+        totalOptimizedBytes += image.file.size;
+      }
+    }
+
+    if (optimizedImages.length > 0) {
+      analyticsService.track('media_compression_summary', {
+        fileCount: optimizedImages.length,
+        totalOriginalBytes,
+        totalOptimizedBytes,
+        bytesSaved: Math.max(0, totalOriginalBytes - totalOptimizedBytes),
+        durationMs: Math.round(performance.now() - compressionStart),
+      });
+    }
+
     setUploadProgress(
-      imagesToUpload.reduce<Record<string, UploadProgressEntry>>((acc, image) => {
-        acc[image.id] = { uploadedBytes: 0, totalBytes: image.file.size };
+      optimizedImages.reduce<Record<string, UploadProgressEntry>>((acc, image) => {
+        acc[image.id] = { uploadedBytes: 0, totalBytes: image.optimizedBytes };
         return acc;
       }, {}),
     );
@@ -897,12 +990,13 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
       try {
         const uploadedMedia: Array<{ key: string; fileName: string; contentType: string }> = [];
 
-        if (imagesToUpload.length > 0) {
-          const presignPayload = imagesToUpload.map((image) => ({
+        if (optimizedImages.length > 0) {
+          const presignStart = performance.now();
+          const presignPayload = optimizedImages.map((image) => ({
             clientUploadId: image.id,
             fileName: image.file.name,
             contentType: image.file.type || 'application/octet-stream',
-            contentLength: image.file.size,
+            contentLength: image.optimizedBytes,
           }));
 
           const presignedUploads = await uploadsService.createPresignedUploads(presignPayload);
@@ -912,17 +1006,23 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
             presignedUploads.map((target) => [target.clientUploadId, target]),
           );
 
-          if (uploadTargetMap.size !== imagesToUpload.length) {
+          if (uploadTargetMap.size !== optimizedImages.length) {
             throw new Error('Upload endpoint did not return URLs for every photo.');
           }
 
-          const performUploadAttempt = async (image: PlantImageFile, target: PresignedUploadTarget) => {
+          analyticsService.track('media_presign_completed', {
+            fileCount: optimizedImages.length,
+            totalBytes: totalOptimizedBytes,
+            durationMs: Math.round(performance.now() - presignStart),
+          });
+
+          const performUploadAttempt = async (image: UploadReadyImage, target: PresignedUploadTarget) => {
             const headers = new Headers(target.headers ?? {});
             if (!headers.has('Content-Type')) {
               headers.set('Content-Type', image.file.type || 'application/octet-stream');
             }
 
-            const totalBytes = image.file.size;
+            const totalBytes = image.optimizedBytes;
             updateUploadProgress(image.id, 0, totalBytes);
 
             const supportsStreaming =
@@ -971,14 +1071,49 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
                 throw new Error(`Upload failed with status ${response.status}.`);
               }
             } else {
-              const response = await fetch(target.uploadUrl, {
-                method: 'PUT',
-                headers,
-                body: image.file,
-              });
+              if (typeof XMLHttpRequest === 'undefined') {
+                const response = await fetch(target.uploadUrl, {
+                  method: 'PUT',
+                  headers,
+                  body: image.file,
+                });
 
-              if (!response.ok) {
-                throw new Error(`Upload failed with status ${response.status}.`);
+                if (!response.ok) {
+                  throw new Error(`Upload failed with status ${response.status}.`);
+                }
+              } else {
+                await new Promise<void>((resolve, reject) => {
+                  const xhr = new XMLHttpRequest();
+                  xhr.open('PUT', target.uploadUrl, true);
+                  headers.forEach((value, key) => {
+                    xhr.setRequestHeader(key, value);
+                  });
+
+                  xhr.upload.onprogress = (event) => {
+                    const reportedTotal = event.total || totalBytes;
+                    updateUploadProgress(image.id, Math.min(event.loaded, reportedTotal), totalBytes);
+                  };
+
+                  xhr.onerror = () => {
+                    reject(new Error('Network error during upload.'));
+                  };
+
+                  xhr.onload = () => {
+                    const status = xhr.status || 0;
+                    if (status >= 200 && status < 300) {
+                      updateUploadProgress(image.id, totalBytes, totalBytes);
+                      resolve();
+                    } else {
+                      reject(new Error(`Upload failed with status ${status || 'unknown'}.`));
+                    }
+                  };
+
+                  xhr.onabort = () => {
+                    reject(new Error('Upload was aborted.'));
+                  };
+
+                  xhr.send(image.file);
+                });
               }
             }
 
@@ -986,7 +1121,7 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
           };
 
           const uploadWithRetries = async (
-            image: PlantImageFile,
+            image: UploadReadyImage,
             target: PresignedUploadTarget,
           ): Promise<void> => {
             const maxAttempts = 3;
@@ -1015,21 +1150,84 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
             }
           };
 
-          setUploadStatus('Uploading photos…');
+          const totalFiles = optimizedImages.length;
+          let completedUploads = 0;
+          const uploadStart = performance.now();
+          analyticsService.track('media_upload_batch_started', {
+            fileCount: totalFiles,
+            totalBytes: totalOptimizedBytes,
+          });
 
-          for (const image of imagesToUpload) {
+          setUploadStatus(`Uploading photos (0/${totalFiles})…`);
+
+          const uploadedMediaResults: Array<{
+            key: string;
+            fileName: string;
+            contentType: string;
+          } | null> = new Array(totalFiles).fill(null);
+
+          let encounteredError: Error | null = null;
+
+          await runWithConcurrency(optimizedImages, MAX_CONCURRENT_UPLOADS, async (image, index) => {
             const target = uploadTargetMap.get(image.id);
             if (!target) {
               throw new Error(`Missing upload target for ${image.file.name}.`);
             }
 
-            await uploadWithRetries(image, target);
-            uploadedMedia.push({
-              key: target.key,
+            const fileUploadStart = performance.now();
+            analyticsService.track('media_upload_started', {
               fileName: image.file.name,
-              contentType: image.file.type || 'application/octet-stream',
+              fileSize: image.optimizedBytes,
+              originalSize: image.originalBytes,
+              wasCompressed: image.wasCompressed,
             });
+
+            try {
+              await uploadWithRetries(image, target);
+              uploadedMediaResults[index] = {
+                key: target.key,
+                fileName: image.file.name,
+                contentType: image.file.type || 'application/octet-stream',
+              };
+              analyticsService.track('media_upload_succeeded', {
+                fileName: image.file.name,
+                durationMs: Math.round(performance.now() - fileUploadStart),
+                fileSize: image.optimizedBytes,
+                originalSize: image.originalBytes,
+                wasCompressed: image.wasCompressed,
+              });
+            } catch (uploadError) {
+              analyticsService.track('media_upload_failed', {
+                fileName: image.file.name,
+                error: uploadError instanceof Error ? uploadError.message : 'unknown',
+                durationMs: Math.round(performance.now() - fileUploadStart),
+              });
+              encounteredError = uploadError instanceof Error
+                ? uploadError
+                : new Error('An unexpected error occurred while uploading a photo.');
+              throw encounteredError;
+            } finally {
+              completedUploads += 1;
+              setUploadStatus(`Uploading photos (${completedUploads}/${totalFiles})…`);
+            }
+          });
+
+          if (encounteredError) {
+            throw encounteredError;
           }
+
+          const uploadDuration = Math.round(performance.now() - uploadStart);
+          analyticsService.track('media_upload_batch_succeeded', {
+            fileCount: totalFiles,
+            totalBytes: totalOptimizedBytes,
+            durationMs: uploadDuration,
+          });
+
+          uploadedMedia.push(
+            ...uploadedMediaResults.filter((entry): entry is { key: string; fileName: string; contentType: string } => {
+              return entry !== null;
+            }),
+          );
         }
 
         setUploadStatus('Finalizing listing…');
@@ -1114,6 +1312,9 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
         if (cleanupKeys.size > 0) {
           await uploadsService.cleanupUploads(Array.from(cleanupKeys));
         }
+        analyticsService.track('media_upload_batch_failed', {
+          error: innerError instanceof Error ? innerError.message : 'unknown',
+        });
         throw innerError;
       }
     } catch (error) {
