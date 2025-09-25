@@ -2,58 +2,64 @@ openapi: 3.0.3
 info:
   title: Thumr Marketplace API
   version: 1.0.0
-  description: |
-    OpenAPI specification for the Thumr plant marketplace backend. Each path maps to an
+  description: 'OpenAPI specification for the Thumr plant marketplace backend. Each
+    path maps to an
+
     AWS Lambda handler that is deployed individually. Vendor extensions under
-    `x-lambda-handler` identify the source file and exported handler function that should
+
+    `x-lambda-handler` identify the source file and exported handler function that
+    should
+
     be wired to the corresponding API Gateway route or scheduler trigger.
+
+    '
 servers:
-  - url: https://api.dev.thumr.com
-    description: Development environment
-  - url: https://api.stage.thumr.com
-    description: Staging environment
-  - url: https://api.thumr.com
-    description: Production environment
+- url: https://api.dev.thumr.com
+  description: Development environment
 security:
-  - cognitoAuthorizer: []
+- cognitoAuthorizer: []
 paths:
   /plants:
     get:
       summary: List plants
       operationId: listPlants
       description: Retrieve published plant listings with optional filtering and pagination.
-      tags: [Plants]
+      tags:
+      - Plants
       x-lambda-handler: plants/getPlants.handler
       parameters:
-        - in: query
-          name: search
-          schema:
-            type: string
-          description: Keyword search string across title, taxonomy, and seller notes.
-        - in: query
-          name: category
-          schema:
-            type: string
-          description: Plant category filter.
-        - in: query
-          name: deliveryMethod
-          schema:
-            type: string
-            enum: [delivery, pickup, delivery_and_pickup]
-          description: Filter listings by fulfillment method.
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-          description: Maximum number of items to return.
-        - in: query
-          name: cursor
-          schema:
-            type: string
-          description: Opaque pagination token returned from the previous response.
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Keyword search string across title, taxonomy, and seller notes.
+      - in: query
+        name: category
+        schema:
+          type: string
+        description: Plant category filter.
+      - in: query
+        name: deliveryMethod
+        schema:
+          type: string
+          enum:
+          - delivery
+          - pickup
+          - delivery_and_pickup
+        description: Filter listings by fulfillment method.
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Maximum number of items to return.
+      - in: query
+        name: cursor
+        schema:
+          type: string
+        description: Opaque pagination token returned from the previous response.
       responses:
         '200':
           description: Paginated list of plants.
@@ -65,7 +71,8 @@ paths:
       summary: Create plant
       operationId: createPlant
       description: Create a new plant listing on behalf of the authenticated seller.
-      tags: [Plants]
+      tags:
+      - Plants
       x-lambda-handler: plants/createPlant.handler
       requestBody:
         required: true
@@ -85,15 +92,16 @@ paths:
       summary: Update plant
       operationId: updatePlant
       description: Update mutable fields of a plant listing.
-      tags: [Plants]
+      tags:
+      - Plants
       x-lambda-handler: plants/updatePlant.handler
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-          description: Unique identifier of the plant listing.
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Unique identifier of the plant listing.
       requestBody:
         required: true
         content:
@@ -112,7 +120,8 @@ paths:
       summary: Create pre-signed upload URLs
       operationId: createPresignUrl
       description: Generate pre-signed S3 URLs for uploading listing media.
-      tags: [Uploads]
+      tags:
+      - Uploads
       x-lambda-handler: uploads/createPresignUrl.handler
       requestBody:
         required: true
@@ -132,7 +141,8 @@ paths:
       summary: Scan uploaded media
       operationId: scanUpload
       description: Validate uploaded files for malware and policy compliance.
-      tags: [Uploads]
+      tags:
+      - Uploads
       x-lambda-handler: uploads/scanUpload.handler
       requestBody:
         required: true
@@ -152,7 +162,8 @@ paths:
       summary: Cleanup orphaned uploads
       operationId: cleanupUploads
       description: Scheduled task to delete expired upload intents and S3 objects.
-      tags: [Uploads]
+      tags:
+      - Uploads
       x-lambda-handler: uploads/cleanupUploads.handler
       responses:
         '200':
@@ -165,7 +176,8 @@ paths:
     get:
       summary: Get current user profile
       operationId: getCurrentUser
-      tags: [Users]
+      tags:
+      - Users
       x-lambda-handler: users/getCurrentUser.handler
       responses:
         '200':
@@ -177,7 +189,8 @@ paths:
     patch:
       summary: Update current user profile
       operationId: updateCurrentUser
-      tags: [Users]
+      tags:
+      - Users
       x-lambda-handler: users/updateCurrentUser.handler
       requestBody:
         required: true
@@ -196,7 +209,8 @@ paths:
     post:
       summary: Create user profile
       operationId: createUser
-      tags: [Users]
+      tags:
+      - Users
       x-lambda-handler: users/createUser.handler
       requestBody:
         required: true
@@ -215,7 +229,8 @@ paths:
     post:
       summary: Create message thread
       operationId: createThread
-      tags: [Messages]
+      tags:
+      - Messages
       x-lambda-handler: messages/createThread.handler
       requestBody:
         required: true
@@ -234,7 +249,8 @@ paths:
     post:
       summary: Send message
       operationId: sendMessage
-      tags: [Messages]
+      tags:
+      - Messages
       x-lambda-handler: messages/sendMessage.handler
       requestBody:
         required: true
@@ -253,7 +269,8 @@ paths:
     post:
       summary: Mark messages read
       operationId: markMessagesRead
-      tags: [Messages]
+      tags:
+      - Messages
       x-lambda-handler: messages/markRead.handler
       requestBody:
         required: true
@@ -272,7 +289,8 @@ paths:
     get:
       summary: Get unread message count
       operationId: getUnreadCount
-      tags: [Messages]
+      tags:
+      - Messages
       x-lambda-handler: messages/getUnreadCount.handler
       responses:
         '200':
@@ -285,7 +303,8 @@ paths:
     post:
       summary: Submit review
       operationId: submitReview
-      tags: [Reviews]
+      tags:
+      - Reviews
       x-lambda-handler: reviews/submitReview.handler
       requestBody:
         required: true
@@ -304,15 +323,16 @@ paths:
     get:
       summary: Get review summary
       operationId: getReviewSummary
-      tags: [Reviews]
+      tags:
+      - Reviews
       x-lambda-handler: reviews/getReviewSummary.handler
       parameters:
-        - in: query
-          name: sellerId
-          required: true
-          schema:
-            type: string
-          description: Seller identifier to summarize ratings for.
+      - in: query
+        name: sellerId
+        required: true
+        schema:
+          type: string
+        description: Seller identifier to summarize ratings for.
       responses:
         '200':
           description: Aggregated review metrics.
@@ -324,15 +344,19 @@ paths:
     get:
       summary: List users for moderation
       operationId: adminListUsers
-      tags: [Admin]
+      tags:
+      - Admin
       x-lambda-handler: admin/usersHandler.handler
       parameters:
-        - in: query
-          name: status
-          schema:
-            type: string
-            enum: [active, suspended, pending]
-          description: Filter by account status.
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - active
+          - suspended
+          - pending
+        description: Filter by account status.
       responses:
         '200':
           description: Moderation view of users.
@@ -343,7 +367,8 @@ paths:
     post:
       summary: Modify user state
       operationId: adminMutateUser
-      tags: [Admin]
+      tags:
+      - Admin
       x-lambda-handler: admin/usersHandler.handler
       requestBody:
         required: true
@@ -362,15 +387,19 @@ paths:
     get:
       summary: List listings for review
       operationId: adminListListings
-      tags: [Admin]
+      tags:
+      - Admin
       x-lambda-handler: admin/listingsHandler.handler
       parameters:
-        - in: query
-          name: status
-          schema:
-            type: string
-            enum: [pending, approved, rejected]
-          description: Filter listings by moderation status.
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - pending
+          - approved
+          - rejected
+        description: Filter listings by moderation status.
       responses:
         '200':
           description: Moderation summary for listings.
@@ -381,7 +410,8 @@ paths:
     post:
       summary: Moderate listing
       operationId: adminMutateListing
-      tags: [Admin]
+      tags:
+      - Admin
       x-lambda-handler: admin/listingsHandler.handler
       requestBody:
         required: true
@@ -400,7 +430,8 @@ paths:
     get:
       summary: List disputes
       operationId: adminListDisputes
-      tags: [Admin]
+      tags:
+      - Admin
       x-lambda-handler: admin/disputesHandler.handler
       responses:
         '200':
@@ -412,7 +443,8 @@ paths:
     post:
       summary: Update dispute
       operationId: adminUpdateDispute
-      tags: [Admin]
+      tags:
+      - Admin
       x-lambda-handler: admin/disputesHandler.handler
       requestBody:
         required: true
@@ -431,7 +463,8 @@ paths:
     post:
       summary: Create audit event
       operationId: adminCreateAudit
-      tags: [Admin]
+      tags:
+      - Admin
       x-lambda-handler: admin/createAuditEvent.handler
       requestBody:
         required: true
@@ -446,7 +479,8 @@ paths:
     post:
       summary: Subscribe email address
       operationId: emailSubscribe
-      tags: [Email]
+      tags:
+      - Email
       x-lambda-handler: email/subscribe.handler
       requestBody:
         required: true
@@ -461,7 +495,8 @@ paths:
     post:
       summary: Unsubscribe email address
       operationId: emailUnsubscribe
-      tags: [Email]
+      tags:
+      - Email
       x-lambda-handler: email/unsubscribe.handler
       requestBody:
         required: true
@@ -476,7 +511,8 @@ paths:
     post:
       summary: Trigger lifecycle email
       operationId: emailTriggerLifecycle
-      tags: [Email]
+      tags:
+      - Email
       x-lambda-handler: email/triggerLifecycle.handler
       requestBody:
         required: true
@@ -491,7 +527,8 @@ paths:
     post:
       summary: Synchronize email templates
       operationId: emailTemplatesSync
-      tags: [Email]
+      tags:
+      - Email
       x-lambda-handler: email/templatesSync.handler
       responses:
         '200':
@@ -500,7 +537,8 @@ paths:
     post:
       summary: Update email consent
       operationId: emailUpdateConsent
-      tags: [Email]
+      tags:
+      - Email
       x-lambda-handler: email/updateConsent.handler
       requestBody:
         required: true
@@ -515,7 +553,8 @@ paths:
     post:
       summary: Create payment charge
       operationId: createCharge
-      tags: [Payments]
+      tags:
+      - Payments
       x-lambda-handler: payments/createCharge.handler
       requestBody:
         required: true
@@ -531,16 +570,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaymentChargeResponse'
 components:
-  securitySchemes:
-    cognitoAuthorizer:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: Cognito JWT issued to authenticated users.
+  securitySchemes: {}
   schemas:
     Plant:
       type: object
-      required: [id, title, species, price, currency, sellerId, sellerName, media, care, delivery]
+      required:
+      - id
+      - title
+      - species
+      - price
+      - currency
+      - sellerId
+      - sellerName
+      - media
+      - care
+      - delivery
       properties:
         id:
           type: string
@@ -582,7 +626,8 @@ components:
           format: date-time
     PlantListResponse:
       type: object
-      required: [items]
+      required:
+      - items
       properties:
         items:
           type: array
@@ -593,7 +638,14 @@ components:
           nullable: true
     PlantCreateRequest:
       type: object
-      required: [title, species, price, currency, media, care, delivery]
+      required:
+      - title
+      - species
+      - price
+      - currency
+      - media
+      - care
+      - delivery
       properties:
         title:
           type: string
@@ -642,10 +694,15 @@ components:
           $ref: '#/components/schemas/ComplianceProfile'
         status:
           type: string
-          enum: [draft, published, archived]
+          enum:
+          - draft
+          - published
+          - archived
     MediaObject:
       type: object
-      required: [key, url]
+      required:
+      - key
+      - url
       properties:
         key:
           type: string
@@ -656,7 +713,8 @@ components:
           type: string
     MediaReference:
       type: object
-      required: [key]
+      required:
+      - key
       properties:
         key:
           type: string
@@ -682,7 +740,10 @@ components:
       properties:
         method:
           type: string
-          enum: [delivery, pickup, delivery_and_pickup]
+          enum:
+          - delivery
+          - pickup
+          - delivery_and_pickup
         deliveryRadiusMiles:
           type: integer
         pickupLocation:
@@ -708,13 +769,16 @@ components:
           type: string
     PresignRequest:
       type: object
-      required: [files]
+      required:
+      - files
       properties:
         files:
           type: array
           items:
             type: object
-            required: [name, contentType]
+            required:
+            - name
+            - contentType
             properties:
               name:
                 type: string
@@ -729,7 +793,10 @@ components:
           type: array
           items:
             type: object
-            required: [key, url, expiresAt]
+            required:
+            - key
+            - url
+            - expiresAt
             properties:
               key:
                 type: string
@@ -741,7 +808,8 @@ components:
                 format: date-time
     ScanRequest:
       type: object
-      required: [key]
+      required:
+      - key
       properties:
         key:
           type: string
@@ -754,7 +822,9 @@ components:
           type: string
         status:
           type: string
-          enum: [approved, rejected]
+          enum:
+          - approved
+          - rejected
         reason:
           type: string
     CleanupResponse:
@@ -770,7 +840,10 @@ components:
             type: string
     UserProfile:
       type: object
-      required: [userId, email, role]
+      required:
+      - userId
+      - email
+      - role
       properties:
         userId:
           type: string
@@ -779,7 +852,10 @@ components:
           format: email
         role:
           type: string
-          enum: [buyer, seller, admin]
+          enum:
+          - buyer
+          - seller
+          - admin
         displayName:
           type: string
         phone:
@@ -796,14 +872,18 @@ components:
           format: date-time
     UserCreateRequest:
       type: object
-      required: [email, role]
+      required:
+      - email
+      - role
       properties:
         email:
           type: string
           format: email
         role:
           type: string
-          enum: [buyer, seller]
+          enum:
+          - buyer
+          - seller
         displayName:
           type: string
         phone:
@@ -851,7 +931,11 @@ components:
           type: boolean
     ThreadCreateRequest:
       type: object
-      required: [plantId, buyerId, sellerId, initialMessage]
+      required:
+      - plantId
+      - buyerId
+      - sellerId
+      - initialMessage
       properties:
         plantId:
           type: string
@@ -863,7 +947,11 @@ components:
           type: string
     Thread:
       type: object
-      required: [threadId, plantId, participants, createdAt]
+      required:
+      - threadId
+      - plantId
+      - participants
+      - createdAt
       properties:
         threadId:
           type: string
@@ -880,7 +968,9 @@ components:
           format: date-time
     SendMessageRequest:
       type: object
-      required: [threadId, message]
+      required:
+      - threadId
+      - message
       properties:
         threadId:
           type: string
@@ -888,7 +978,9 @@ components:
           $ref: '#/components/schemas/MessageInput'
     MessageInput:
       type: object
-      required: [senderId, body]
+      required:
+      - senderId
+      - body
       properties:
         senderId:
           type: string
@@ -898,7 +990,11 @@ components:
           type: string
     Message:
       type: object
-      required: [messageId, senderId, body, createdAt]
+      required:
+      - messageId
+      - senderId
+      - body
+      - createdAt
       properties:
         messageId:
           type: string
@@ -919,7 +1015,8 @@ components:
             type: string
     MarkReadRequest:
       type: object
-      required: [threadId]
+      required:
+      - threadId
       properties:
         threadId:
           type: string
@@ -936,7 +1033,9 @@ components:
           type: array
           items:
             type: object
-            required: [threadId, count]
+            required:
+            - threadId
+            - count
             properties:
               threadId:
                 type: string
@@ -944,7 +1043,11 @@ components:
                 type: integer
     ReviewSubmitRequest:
       type: object
-      required: [orderId, sellerId, rating, comment]
+      required:
+      - orderId
+      - sellerId
+      - rating
+      - comment
       properties:
         orderId:
           type: string
@@ -962,7 +1065,12 @@ components:
             $ref: '#/components/schemas/MediaReference'
     Review:
       type: object
-      required: [reviewId, sellerId, rating, comment, createdAt]
+      required:
+      - reviewId
+      - sellerId
+      - rating
+      - comment
+      - createdAt
       properties:
         reviewId:
           type: string
@@ -981,7 +1089,10 @@ components:
           format: date-time
     ReviewSummary:
       type: object
-      required: [sellerId, averageRating, reviewCount]
+      required:
+      - sellerId
+      - averageRating
+      - reviewCount
       properties:
         sellerId:
           type: string
@@ -1026,13 +1137,19 @@ components:
             type: string
     AdminUserActionRequest:
       type: object
-      required: [userId, action]
+      required:
+      - userId
+      - action
       properties:
         userId:
           type: string
         action:
           type: string
-          enum: [suspend, reinstate, promote, demote]
+          enum:
+          - suspend
+          - reinstate
+          - promote
+          - demote
         reason:
           type: string
     AdminListingListResponse:
@@ -1059,13 +1176,19 @@ components:
             type: string
     AdminListingActionRequest:
       type: object
-      required: [listingId, action]
+      required:
+      - listingId
+      - action
       properties:
         listingId:
           type: string
         action:
           type: string
-          enum: [approve, reject, request_changes, archive]
+          enum:
+          - approve
+          - reject
+          - request_changes
+          - archive
         notes:
           type: string
     AdminDisputeListResponse:
@@ -1093,13 +1216,19 @@ components:
           format: date-time
     AdminDisputeActionRequest:
       type: object
-      required: [disputeId, action]
+      required:
+      - disputeId
+      - action
       properties:
         disputeId:
           type: string
         action:
           type: string
-          enum: [assign, resolve, escalate, request_info]
+          enum:
+          - assign
+          - resolve
+          - escalate
+          - request_info
         notes:
           type: string
     AdminActionResult:
@@ -1111,7 +1240,11 @@ components:
           type: string
     AuditEventRequest:
       type: object
-      required: [entityType, entityId, action, actorId]
+      required:
+      - entityType
+      - entityId
+      - action
+      - actorId
       properties:
         entityType:
           type: string
@@ -1129,7 +1262,8 @@ components:
           format: date-time
     EmailSubscriptionRequest:
       type: object
-      required: [email]
+      required:
+      - email
       properties:
         email:
           type: string
@@ -1140,7 +1274,8 @@ components:
           type: string
     EmailUnsubscribeRequest:
       type: object
-      required: [email]
+      required:
+      - email
       properties:
         email:
           type: string
@@ -1149,7 +1284,9 @@ components:
           type: string
     EmailLifecycleRequest:
       type: object
-      required: [templateId, recipient]
+      required:
+      - templateId
+      - recipient
       properties:
         templateId:
           type: string
@@ -1161,7 +1298,9 @@ components:
           additionalProperties: true
     EmailConsentRequest:
       type: object
-      required: [userId, marketingOptIn]
+      required:
+      - userId
+      - marketingOptIn
       properties:
         userId:
           type: string
@@ -1174,7 +1313,11 @@ components:
           format: date-time
     PaymentChargeRequest:
       type: object
-      required: [orderId, amount, currency, paymentMethodId]
+      required:
+      - orderId
+      - amount
+      - currency
+      - paymentMethodId
       properties:
         orderId:
           type: string
@@ -1202,7 +1345,10 @@ components:
           type: string
         status:
           type: string
-          enum: [succeeded, pending, failed]
+          enum:
+          - succeeded
+          - pending
+          - failed
         clientSecret:
           type: string
         receiptUrl:
