@@ -1,9 +1,7 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { Suspense, lazy, useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { PlantCard } from './components/PlantCard';
-import { CreateNewPlantModal } from './components/CreateNewPlantModal';
-import { PlantDetailModal } from './components/PlantDetailModal';
 import { Button } from './components/ui/button';
 import { MobileActionBar } from './components/MobileActionBar';
 import { SlidersHorizontal, Grid3X3, List } from 'lucide-react';
@@ -19,6 +17,9 @@ import { toast } from 'sonner';
 import { isPlantResponseDto, type PlantResponseDto } from './interfaces/dtos';
 import { Skeleton } from './components/ui/skeleton';
 
+const CreateNewPlantModal = lazy(() => import('./components/CreateNewPlantModal').then((module) => ({ default: module.CreateNewPlantModal })));
+const PlantDetailModal = lazy(() => import('./components/PlantDetailModal').then((module) => ({ default: module.PlantDetailModal })));
+
 const PLANTS_PAGE_SIZE = 20;
 
 const PlantCardSkeleton = () => {
@@ -33,6 +34,24 @@ const PlantCardSkeleton = () => {
           <Skeleton className="h-6 w-16" />
         </div>
         <Skeleton className="h-4 w-full" />
+      </div>
+    </div>
+  );
+};
+
+const ModalLoadingFallback = ({ message, presentation = 'modal' }: { message: string; presentation?: 'modal' | 'page' }) => {
+  if (presentation === 'page') {
+    return (
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-white">
+        <span className="text-sm text-muted-foreground">{message}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+      <div className="rounded-lg bg-white px-6 py-4 shadow-lg">
+        <span className="text-sm font-medium text-muted-foreground">{message}</span>
       </div>
     </div>
   );
@@ -442,11 +461,15 @@ const App = () => {
             </main>
           </div>
 
-          <CreateNewPlantModal
-            isOpen={isCreateNewPlantModalOpen}
-            onClose={() => setIsCreateNewPlantModalOpen(false)}
-            onListingCreated={handleListingCreated}
-          />
+          {isCreateNewPlantModalOpen && (
+            <Suspense fallback={<ModalLoadingFallback message="Preparing listing creator..." />}>
+              <CreateNewPlantModal
+                isOpen={isCreateNewPlantModalOpen}
+                onClose={() => setIsCreateNewPlantModalOpen(false)}
+                onListingCreated={handleListingCreated}
+              />
+            </Suspense>
+          )}
         </>
       )}
 
@@ -457,14 +480,23 @@ const App = () => {
       )}
 
       {selectedPlant && (
-        <PlantDetailModal
-          plant={selectedPlant}
-          isOpen={isDetailRoute}
-          onClose={handleCloseDetail}
-          onPlantUpdate={handlePlantUpdate}
-          onListingUpdated={handleListingUpdated}
-          presentation={isMobile ? 'page' : 'modal'}
-        />
+        <Suspense
+          fallback={(
+            <ModalLoadingFallback
+              message="Loading plant details..."
+              presentation={isMobile ? 'page' : 'modal'}
+            />
+          )}
+        >
+          <PlantDetailModal
+            plant={selectedPlant}
+            isOpen={isDetailRoute}
+            onClose={handleCloseDetail}
+            onPlantUpdate={handlePlantUpdate}
+            onListingUpdated={handleListingUpdated}
+            presentation={isMobile ? 'page' : 'modal'}
+          />
+        </Suspense>
       )}
 
       <MobileActionBar onAddListing={handleAddListing} />
