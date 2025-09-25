@@ -46,8 +46,8 @@ interface CartContextValue {
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
 
-const CART_STORAGE_KEY = 'greenthumr.cart.items';
-const DELIVERY_STORAGE_KEY = 'greenthumr.cart.delivery';
+const CART_STORAGE_KEY = 'thumr.cart.items';
+const DELIVERY_STORAGE_KEY = 'thumr.cart.delivery';
 
 export const DELIVERY_OPTIONS: DeliveryOption[] = [
   {

@@ -11,9 +11,9 @@ export interface SeoMetadata {
 }
 
 export const SEO_DEFAULTS: SeoMetadata = {
-  title: 'GreenThumr | Rare Plant Marketplace',
+  title: 'Thumr | Rare Plant Marketplace',
   description:
-    'GreenThumr is the community-driven marketplace where plant collectors discover, trade, and care for rare houseplants together.',
+    'Thumr is the community-driven marketplace where plant collectors discover, trade, and care for rare houseplants together.',
   keywords: [
     'plant marketplace',
     'buy rare plants',
@@ -21,10 +21,10 @@ export const SEO_DEFAULTS: SeoMetadata = {
     'plant swap',
     'plant care community',
   ],
-  image: 'https://greenthumr.app/social-share.jpg',
-  url: 'https://greenthumr.app/',
+  image: 'https://thumr.com/social-share.jpg',
+  url: 'https://thumr.com/',
   type: 'website',
   twitterCard: 'summary_large_image',
-  twitterHandle: '@greenthumrapp',
-  siteName: 'GreenThumr Marketplace',
+  twitterHandle: '@thumrapp',
+  siteName: 'Thumr Marketplace',
 };

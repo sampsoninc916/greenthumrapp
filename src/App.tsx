@@ -239,7 +239,7 @@ const App = () => {
       return null;
     }
 
-    const siteName = SEO_DEFAULTS.siteName ?? 'GreenThumr Marketplace';
+    const siteName = SEO_DEFAULTS.siteName ?? 'Thumr Marketplace';
     const primaryImage = (() => {
       const candidate = selectedPlant.images?.find((image) => Boolean(image));
       if (!candidate) {
@@ -263,7 +263,7 @@ const App = () => {
       ? `${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedPlant.price)} listing.`
       : '';
     const descriptionSource = selectedPlant.description?.trim() ??
-      'Discover more plant listings from trusted GreenThumr growers.';
+      'Discover more plant listings from trusted Thumr growers.';
     const description = [
       `${selectedPlant.name}${detailSuffix}.`,
       priceSnippet,
@@ -451,7 +451,7 @@ const App = () => {
       window.setTimeout(() => {
         setIsSubmittingNewsletter(false);
         setNewsletterEmail('');
-        toast.success('Welcome to the GreenThumr grower circle!');
+        toast.success('Welcome to the Thumr grower circle!');
       }, 750);
     },
     [handleJoinNewsletterFocus, newsletterEmail],
@@ -485,7 +485,7 @@ const App = () => {
                       Fresh finds for plant lovers
                     </div>
                     <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
-                      Grow your urban jungle with trusted GreenThumr growers
+                      Grow your urban jungle with trusted Thumr growers
                     </h1>
                     <p className="max-w-2xl text-lg text-emerald-50">
                       Discover rare houseplants, resilient natives, and beautifully propagated cuttings sourced from a passionate community of growers who care as much as you do.
@@ -611,7 +611,7 @@ const App = () => {
                   <div className="flex items-start gap-3">
                     <Quote className="mt-1 h-7 w-7 text-emerald-300" aria-hidden="true" />
                     <p className="text-sm text-emerald-100">
-                      "GreenThumr has transformed how I discover rare specimens. The newsletters are packed with seasonal advice that keeps my collection lush and healthy."
+                      "Thumr has transformed how I discover rare specimens. The newsletters are packed with seasonal advice that keeps my collection lush and healthy."
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -623,7 +623,7 @@ const App = () => {
                     />
                     <div>
                       <p className="text-sm font-semibold text-white">Maya Chen</p>
-                      <p className="text-xs text-emerald-200">Plant stylist & long-time GreenThumr seller</p>
+                      <p className="text-xs text-emerald-200">Plant stylist & long-time Thumr seller</p>
                     </div>
                   </div>
                 </div>
@@ -633,7 +633,7 @@ const App = () => {
                 <header className="space-y-3 text-center">
                   <h2 className="text-2xl font-bold text-emerald-950">What our growers are saying</h2>
                   <p className="text-sm text-muted-foreground">
-                    Hear how plant enthusiasts are thriving with GreenThumr—from balcony gardens to greenhouse sanctuaries.
+                    Hear how plant enthusiasts are thriving with Thumr—from balcony gardens to greenhouse sanctuaries.
                   </p>
                 </header>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

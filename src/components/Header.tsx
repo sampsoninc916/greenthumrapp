@@ -289,7 +289,7 @@ export function Header({ onSearch, onAddListing, onMenuToggle }: HeaderProps) {
             </SheetContent>
           </Sheet>
           <div className="flex items-center gap-2">
-            <img src={GreenThumrLogo} alt="GreenThumr Logo" className="h-12 w-12" />
+            <img src={GreenThumrLogo} alt="Thumr Logo" className="h-12 w-12" />
             <div className="hidden sm:block">
               <h1 className="text-xl oxygen-bold text-green-800">Thumr</h1>
               <p className="text-xs text-green-600">Buy • Sell • Trade</p>
