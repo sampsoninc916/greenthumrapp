@@ -1,5 +1,6 @@
 import { Amplify } from 'aws-amplify';
 import { CookieStorage } from '@aws-amplify/core';
+import { telemetryService } from '../services/telemetry';
 
 const toBoolean = (value: string | undefined, fallback: boolean): boolean => {
   if (value === undefined) {
@@ -170,7 +171,16 @@ const validateRequiredConfig = () => {
 
   if (missingCognito.length > 0) {
     const message = `Missing required AWS Cognito configuration values: ${missingCognito.join(', ')}`;
-    console.error(message);
+    telemetryService.captureException(new Error(message), {
+      message,
+      tags: {
+        feature: 'config',
+        operation: 'validate-cognito',
+      },
+      extra: {
+        missingKeys: missingCognito,
+      },
+    });
     throw new Error(message);
   }
 
@@ -182,7 +192,16 @@ const validateRequiredConfig = () => {
   if (missingEndpoints.length > 0) {
     const envKeys = missingEndpoints.map((key) => API_ENV_KEY_MAP[key]);
     const message = `Missing required API endpoints: ${envKeys.join(', ')}`;
-    console.error(message);
+    telemetryService.captureException(new Error(message), {
+      message,
+      tags: {
+        feature: 'config',
+        operation: 'validate-api-endpoints',
+      },
+      extra: {
+        missingKeys: envKeys,
+      },
+    });
     throw new Error(message);
   }
 };

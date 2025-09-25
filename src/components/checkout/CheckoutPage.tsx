@@ -5,6 +5,7 @@ import { useCart } from '../../contexts/CartContext';
 import type { CheckoutAddress } from '../../interfaces/Checkout';
 import { formatCurrency } from '../../utils/currency';
 import { processPayment } from '../../services/payments';
+import { telemetryService } from '../../services/telemetry';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
@@ -113,7 +114,17 @@ export const CheckoutPage = () => {
         }
       });
     } catch (error) {
-      console.error('Checkout submission failed', error);
+      telemetryService.captureException(error, {
+        message: 'Checkout submission failed',
+        tags: {
+          feature: 'checkout',
+          operation: 'submit-order',
+        },
+        extra: {
+          itemCount: totals.itemCount,
+          totalAmount: totals.total,
+        },
+      });
       setErrorMessage('We were unable to submit your order. Please try again.');
     } finally {
       setIsProcessing(false);

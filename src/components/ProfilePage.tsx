@@ -28,6 +28,7 @@ import {
   type PlantResponseDto,
   type UserProfileResponseDto,
 } from "../interfaces/dtos";
+import { telemetryService } from "../services/telemetry";
 
 const toIdArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
@@ -255,7 +256,13 @@ export function ProfilePage() {
           }
         }
       } catch (error) {
-        console.error("Failed to resolve user identifier", error);
+        telemetryService.captureException(error, {
+          message: "Failed to resolve user identifier",
+          tags: {
+            feature: "profile",
+            operation: "resolve-user",
+          },
+        });
         if (!isCancelled) {
           await redirectToLogin(true);
         }
@@ -341,7 +348,16 @@ export function ProfilePage() {
         if (/sign in/i.test(message) || /auth/i.test(message)) {
           await redirectToLogin();
         } else {
-          console.error(error);
+          telemetryService.captureException(error, {
+            message: "Failed to load profile data",
+            tags: {
+              feature: "profile",
+              operation: "load", 
+            },
+            extra: {
+              userId: currentUserId,
+            },
+          });
           toast.error('We were unable to load your profile. Please try again.');
         }
       }
@@ -438,7 +454,13 @@ export function ProfilePage() {
       });
       toast.success("Your communication preferences have been updated.");
     } catch (error) {
-      console.error(error);
+      telemetryService.captureException(error, {
+        message: "Failed to update communication preferences",
+        tags: {
+          feature: "profile",
+          operation: "update-consents",
+        },
+      });
       const message =
         error instanceof Error
           ? error.message
@@ -472,7 +494,16 @@ export function ProfilePage() {
       setIsEditing(false);
       toast.success("Profile updated successfully.");
     } catch (error) {
-      console.error("Error saving changes:", error);
+      telemetryService.captureException(error, {
+        message: "Error saving profile changes",
+        tags: {
+          feature: "profile",
+          operation: "update", 
+        },
+        extra: {
+          userId: user?.userId ?? null,
+        },
+      });
       toast.error("We couldn't save your changes. Please try again.");
     }
   };

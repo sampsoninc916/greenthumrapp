@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { telemetryService } from './telemetry';
 
 export interface HttpRequestOptions extends RequestInit {
   retries?: number;
@@ -42,15 +43,14 @@ export class ApiError extends Error {
 }
 
 export const logApiError = (error: ApiError, suppressToast = false) => {
-  const context = {
+  telemetryService.captureApiError(error, {
     endpoint: error.endpoint,
-    status: error.status,
-    details: error.details,
-    operationName: error.operationName,
-    cause: (error as any).cause,
-  };
-
-  console.error('[API] Request failed', context);
+    statusCode: error.status,
+    extra: {
+      operationName: error.operationName,
+      details: error.details,
+    },
+  });
 
   if (!suppressToast) {
     toast.error(error.message);

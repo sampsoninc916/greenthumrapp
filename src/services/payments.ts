@@ -1,3 +1,5 @@
+import { telemetryService } from './telemetry';
+
 export interface CardPaymentMethod {
   type: 'card';
   cardNumber: string;
@@ -75,7 +77,18 @@ export const processPayment = async (payload: PaymentPayload): Promise<PaymentRe
       transactionId: `test_${Date.now()}`
     };
   } catch (error) {
-    console.error('Payment processing error', error);
+    telemetryService.captureException(error, {
+      message: 'Payment processing error',
+      tags: {
+        feature: 'payments',
+        operation: 'process-payment',
+      },
+      extra: {
+        hasEndpoint: Boolean(PAYMENT_ENDPOINT),
+        amount: payload.amount,
+        currency: payload.currency,
+      },
+    });
     return {
       success: false,
       errorMessage: error instanceof Error ? error.message : 'An unknown error occurred while processing the payment.'
