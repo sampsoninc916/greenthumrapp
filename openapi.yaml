@@ -1,0 +1,1212 @@
+openapi: 3.1.0
+info:
+  title: Thumr Marketplace API
+  version: 1.0.0
+  description: |
+    OpenAPI specification for the Thumr plant marketplace backend. Each path maps to an
+    AWS Lambda handler that is deployed individually. Vendor extensions under
+    `x-lambda-handler` identify the source file and exported handler function that should
+    be wired to the corresponding API Gateway route or scheduler trigger.
+servers:
+  - url: https://api.dev.thumr.com
+    description: Development environment
+  - url: https://api.stage.thumr.com
+    description: Staging environment
+  - url: https://api.thumr.com
+    description: Production environment
+security:
+  - cognitoAuthorizer: []
+paths:
+  /plants:
+    get:
+      summary: List plants
+      operationId: listPlants
+      description: Retrieve published plant listings with optional filtering and pagination.
+      tags: [Plants]
+      x-lambda-handler: plants/getPlants.handler
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Keyword search string across title, taxonomy, and seller notes.
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: Plant category filter.
+        - in: query
+          name: deliveryMethod
+          schema:
+            type: string
+            enum: [delivery, pickup, delivery_and_pickup]
+          description: Filter listings by fulfillment method.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Maximum number of items to return.
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: Opaque pagination token returned from the previous response.
+      responses:
+        '200':
+          description: Paginated list of plants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlantListResponse'
+    post:
+      summary: Create plant
+      operationId: createPlant
+      description: Create a new plant listing on behalf of the authenticated seller.
+      tags: [Plants]
+      x-lambda-handler: plants/createPlant.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlantCreateRequest'
+      responses:
+        '201':
+          description: Plant listing created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plant'
+  /plants/{id}:
+    patch:
+      summary: Update plant
+      operationId: updatePlant
+      description: Update mutable fields of a plant listing.
+      tags: [Plants]
+      x-lambda-handler: plants/updatePlant.handler
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Unique identifier of the plant listing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlantUpdateRequest'
+      responses:
+        '200':
+          description: Updated plant listing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plant'
+  /uploads/presign:
+    post:
+      summary: Create pre-signed upload URLs
+      operationId: createPresignUrl
+      description: Generate pre-signed S3 URLs for uploading listing media.
+      tags: [Uploads]
+      x-lambda-handler: uploads/createPresignUrl.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresignRequest'
+      responses:
+        '200':
+          description: Pre-signed URLs generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresignResponse'
+  /uploads/scan:
+    post:
+      summary: Scan uploaded media
+      operationId: scanUpload
+      description: Validate uploaded files for malware and policy compliance.
+      tags: [Uploads]
+      x-lambda-handler: uploads/scanUpload.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanRequest'
+      responses:
+        '200':
+          description: Scan results.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanResponse'
+  /uploads/cleanup:
+    post:
+      summary: Cleanup orphaned uploads
+      operationId: cleanupUploads
+      description: Scheduled task to delete expired upload intents and S3 objects.
+      tags: [Uploads]
+      x-lambda-handler: uploads/cleanupUploads.handler
+      responses:
+        '200':
+          description: Cleanup summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupResponse'
+  /users/me:
+    get:
+      summary: Get current user profile
+      operationId: getCurrentUser
+      tags: [Users]
+      x-lambda-handler: users/getCurrentUser.handler
+      responses:
+        '200':
+          description: Authenticated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+    patch:
+      summary: Update current user profile
+      operationId: updateCurrentUser
+      tags: [Users]
+      x-lambda-handler: users/updateCurrentUser.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: Updated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+  /users:
+    post:
+      summary: Create user profile
+      operationId: createUser
+      tags: [Users]
+      x-lambda-handler: users/createUser.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: User profile created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+  /messages/threads:
+    post:
+      summary: Create message thread
+      operationId: createThread
+      tags: [Messages]
+      x-lambda-handler: messages/createThread.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThreadCreateRequest'
+      responses:
+        '201':
+          description: Conversation created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+  /messages/send:
+    post:
+      summary: Send message
+      operationId: sendMessage
+      tags: [Messages]
+      x-lambda-handler: messages/sendMessage.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '202':
+          description: Message accepted for delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+  /messages/read:
+    post:
+      summary: Mark messages read
+      operationId: markMessagesRead
+      tags: [Messages]
+      x-lambda-handler: messages/markRead.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkReadRequest'
+      responses:
+        '200':
+          description: Updated unread counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCount'
+  /messages/unread-count:
+    get:
+      summary: Get unread message count
+      operationId: getUnreadCount
+      tags: [Messages]
+      x-lambda-handler: messages/getUnreadCount.handler
+      responses:
+        '200':
+          description: Unread message counters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCount'
+  /reviews:
+    post:
+      summary: Submit review
+      operationId: submitReview
+      tags: [Reviews]
+      x-lambda-handler: reviews/submitReview.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewSubmitRequest'
+      responses:
+        '201':
+          description: Review created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+  /reviews/summary:
+    get:
+      summary: Get review summary
+      operationId: getReviewSummary
+      tags: [Reviews]
+      x-lambda-handler: reviews/getReviewSummary.handler
+      parameters:
+        - in: query
+          name: sellerId
+          required: true
+          schema:
+            type: string
+          description: Seller identifier to summarize ratings for.
+      responses:
+        '200':
+          description: Aggregated review metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewSummary'
+  /admin/users:
+    get:
+      summary: List users for moderation
+      operationId: adminListUsers
+      tags: [Admin]
+      x-lambda-handler: admin/usersHandler.handler
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, suspended, pending]
+          description: Filter by account status.
+      responses:
+        '200':
+          description: Moderation view of users.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+    post:
+      summary: Modify user state
+      operationId: adminMutateUser
+      tags: [Admin]
+      x-lambda-handler: admin/usersHandler.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserActionRequest'
+      responses:
+        '200':
+          description: Result of the requested action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminActionResult'
+  /admin/listings:
+    get:
+      summary: List listings for review
+      operationId: adminListListings
+      tags: [Admin]
+      x-lambda-handler: admin/listingsHandler.handler
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+          description: Filter listings by moderation status.
+      responses:
+        '200':
+          description: Moderation summary for listings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListingListResponse'
+    post:
+      summary: Moderate listing
+      operationId: adminMutateListing
+      tags: [Admin]
+      x-lambda-handler: admin/listingsHandler.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminListingActionRequest'
+      responses:
+        '200':
+          description: Result of moderation action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminActionResult'
+  /admin/disputes:
+    get:
+      summary: List disputes
+      operationId: adminListDisputes
+      tags: [Admin]
+      x-lambda-handler: admin/disputesHandler.handler
+      responses:
+        '200':
+          description: Collection of disputes requiring attention.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDisputeListResponse'
+    post:
+      summary: Update dispute
+      operationId: adminUpdateDispute
+      tags: [Admin]
+      x-lambda-handler: admin/disputesHandler.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDisputeActionRequest'
+      responses:
+        '200':
+          description: Dispute status update result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminActionResult'
+  /admin/audit:
+    post:
+      summary: Create audit event
+      operationId: adminCreateAudit
+      tags: [Admin]
+      x-lambda-handler: admin/createAuditEvent.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditEventRequest'
+      responses:
+        '202':
+          description: Audit event accepted.
+  /email/subscribe:
+    post:
+      summary: Subscribe email address
+      operationId: emailSubscribe
+      tags: [Email]
+      x-lambda-handler: email/subscribe.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription confirmed.
+  /email/unsubscribe:
+    post:
+      summary: Unsubscribe email address
+      operationId: emailUnsubscribe
+      tags: [Email]
+      x-lambda-handler: email/unsubscribe.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailUnsubscribeRequest'
+      responses:
+        '200':
+          description: Unsubscription processed.
+  /email/lifecycle:
+    post:
+      summary: Trigger lifecycle email
+      operationId: emailTriggerLifecycle
+      tags: [Email]
+      x-lambda-handler: email/triggerLifecycle.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailLifecycleRequest'
+      responses:
+        '202':
+          description: Lifecycle email scheduled.
+  /email/templates-sync:
+    post:
+      summary: Synchronize email templates
+      operationId: emailTemplatesSync
+      tags: [Email]
+      x-lambda-handler: email/templatesSync.handler
+      responses:
+        '200':
+          description: Templates refreshed.
+  /email/consent:
+    post:
+      summary: Update email consent
+      operationId: emailUpdateConsent
+      tags: [Email]
+      x-lambda-handler: email/updateConsent.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailConsentRequest'
+      responses:
+        '200':
+          description: Consent preferences updated.
+  /payments/charge:
+    post:
+      summary: Create payment charge
+      operationId: createCharge
+      tags: [Payments]
+      x-lambda-handler: payments/createCharge.handler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentChargeRequest'
+      responses:
+        '200':
+          description: Payment processed result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentChargeResponse'
+components:
+  securitySchemes:
+    cognitoAuthorizer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Cognito JWT issued to authenticated users.
+  schemas:
+    Plant:
+      type: object
+      required: [id, title, species, price, currency, sellerId, sellerName, media, care, delivery]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        species:
+          type: string
+        cultivar:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        currency:
+          type: string
+          example: USD
+        quantityAvailable:
+          type: integer
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaObject'
+        care:
+          $ref: '#/components/schemas/CareProfile'
+        delivery:
+          $ref: '#/components/schemas/DeliveryProfile'
+        sellerId:
+          type: string
+        sellerName:
+          type: string
+        sellerRating:
+          $ref: '#/components/schemas/RatingSummary'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PlantListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plant'
+        nextCursor:
+          type: string
+          nullable: true
+    PlantCreateRequest:
+      type: object
+      required: [title, species, price, currency, media, care, delivery]
+      properties:
+        title:
+          type: string
+        species:
+          type: string
+        cultivar:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        currency:
+          type: string
+        quantityAvailable:
+          type: integer
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaReference'
+        care:
+          $ref: '#/components/schemas/CareProfile'
+        delivery:
+          $ref: '#/components/schemas/DeliveryProfile'
+        compliance:
+          $ref: '#/components/schemas/ComplianceProfile'
+    PlantUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        quantityAvailable:
+          type: integer
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaReference'
+        care:
+          $ref: '#/components/schemas/CareProfile'
+        delivery:
+          $ref: '#/components/schemas/DeliveryProfile'
+        compliance:
+          $ref: '#/components/schemas/ComplianceProfile'
+        status:
+          type: string
+          enum: [draft, published, archived]
+    MediaObject:
+      type: object
+      required: [key, url]
+      properties:
+        key:
+          type: string
+        url:
+          type: string
+          format: uri
+        altText:
+          type: string
+    MediaReference:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+        altText:
+          type: string
+    CareProfile:
+      type: object
+      properties:
+        light:
+          type: string
+        water:
+          type: string
+        soil:
+          type: string
+        humidity:
+          type: string
+        temperature:
+          type: string
+        notes:
+          type: string
+    DeliveryProfile:
+      type: object
+      properties:
+        method:
+          type: string
+          enum: [delivery, pickup, delivery_and_pickup]
+        deliveryRadiusMiles:
+          type: integer
+        pickupLocation:
+          type: string
+        shippingRestrictions:
+          type: array
+          items:
+            type: string
+        warrantyDays:
+          type: integer
+    ComplianceProfile:
+      type: object
+      properties:
+        phytosanitaryCertified:
+          type: boolean
+        restrictedStates:
+          type: array
+          items:
+            type: string
+        guarantees:
+          type: string
+        notes:
+          type: string
+    PresignRequest:
+      type: object
+      required: [files]
+      properties:
+        files:
+          type: array
+          items:
+            type: object
+            required: [name, contentType]
+            properties:
+              name:
+                type: string
+              contentType:
+                type: string
+              sizeBytes:
+                type: integer
+    PresignResponse:
+      type: object
+      properties:
+        uploads:
+          type: array
+          items:
+            type: object
+            required: [key, url, expiresAt]
+            properties:
+              key:
+                type: string
+              url:
+                type: string
+                format: uri
+              expiresAt:
+                type: string
+                format: date-time
+    ScanRequest:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+        checksum:
+          type: string
+    ScanResponse:
+      type: object
+      properties:
+        key:
+          type: string
+        status:
+          type: string
+          enum: [approved, rejected]
+        reason:
+          type: string
+    CleanupResponse:
+      type: object
+      properties:
+        deletedUploads:
+          type: integer
+        deletedObjects:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+    UserProfile:
+      type: object
+      required: [userId, email, role]
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [buyer, seller, admin]
+        displayName:
+          type: string
+        phone:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        consents:
+          $ref: '#/components/schemas/ConsentPreferences'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UserCreateRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [buyer, seller]
+        displayName:
+          type: string
+        phone:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        consents:
+          $ref: '#/components/schemas/ConsentPreferences'
+    UserUpdateRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        phone:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        consents:
+          $ref: '#/components/schemas/ConsentPreferences'
+    Address:
+      type: object
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+    ConsentPreferences:
+      type: object
+      properties:
+        termsAcceptedAt:
+          type: string
+          format: date-time
+        privacyAcceptedAt:
+          type: string
+          format: date-time
+        marketingOptIn:
+          type: boolean
+    ThreadCreateRequest:
+      type: object
+      required: [plantId, buyerId, sellerId, initialMessage]
+      properties:
+        plantId:
+          type: string
+        buyerId:
+          type: string
+        sellerId:
+          type: string
+        initialMessage:
+          type: string
+    Thread:
+      type: object
+      required: [threadId, plantId, participants, createdAt]
+      properties:
+        threadId:
+          type: string
+        plantId:
+          type: string
+        participants:
+          type: array
+          items:
+            type: string
+        lastMessage:
+          $ref: '#/components/schemas/Message'
+        createdAt:
+          type: string
+          format: date-time
+    SendMessageRequest:
+      type: object
+      required: [threadId, message]
+      properties:
+        threadId:
+          type: string
+        message:
+          $ref: '#/components/schemas/MessageInput'
+    MessageInput:
+      type: object
+      required: [senderId, body]
+      properties:
+        senderId:
+          type: string
+        body:
+          type: string
+        attachmentKey:
+          type: string
+    Message:
+      type: object
+      required: [messageId, senderId, body, createdAt]
+      properties:
+        messageId:
+          type: string
+        threadId:
+          type: string
+        senderId:
+          type: string
+        body:
+          type: string
+        attachment:
+          $ref: '#/components/schemas/MediaObject'
+        createdAt:
+          type: string
+          format: date-time
+        readBy:
+          type: array
+          items:
+            type: string
+    MarkReadRequest:
+      type: object
+      required: [threadId]
+      properties:
+        threadId:
+          type: string
+        messageIds:
+          type: array
+          items:
+            type: string
+    UnreadCount:
+      type: object
+      properties:
+        total:
+          type: integer
+        threads:
+          type: array
+          items:
+            type: object
+            required: [threadId, count]
+            properties:
+              threadId:
+                type: string
+              count:
+                type: integer
+    ReviewSubmitRequest:
+      type: object
+      required: [orderId, sellerId, rating, comment]
+      properties:
+        orderId:
+          type: string
+        sellerId:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaReference'
+    Review:
+      type: object
+      required: [reviewId, sellerId, rating, comment, createdAt]
+      properties:
+        reviewId:
+          type: string
+        orderId:
+          type: string
+        sellerId:
+          type: string
+        rating:
+          type: integer
+        comment:
+          type: string
+        reviewerId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ReviewSummary:
+      type: object
+      required: [sellerId, averageRating, reviewCount]
+      properties:
+        sellerId:
+          type: string
+        averageRating:
+          type: number
+          format: float
+        reviewCount:
+          type: integer
+        breakdown:
+          type: object
+          additionalProperties:
+            type: integer
+    RatingSummary:
+      type: object
+      properties:
+        averageRating:
+          type: number
+          format: float
+        reviewCount:
+          type: integer
+    AdminUserListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUserSummary'
+    AdminUserSummary:
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        flags:
+          type: array
+          items:
+            type: string
+    AdminUserActionRequest:
+      type: object
+      required: [userId, action]
+      properties:
+        userId:
+          type: string
+        action:
+          type: string
+          enum: [suspend, reinstate, promote, demote]
+        reason:
+          type: string
+    AdminListingListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminListingSummary'
+    AdminListingSummary:
+      type: object
+      properties:
+        listingId:
+          type: string
+        title:
+          type: string
+        sellerId:
+          type: string
+        status:
+          type: string
+        flags:
+          type: array
+          items:
+            type: string
+    AdminListingActionRequest:
+      type: object
+      required: [listingId, action]
+      properties:
+        listingId:
+          type: string
+        action:
+          type: string
+          enum: [approve, reject, request_changes, archive]
+        notes:
+          type: string
+    AdminDisputeListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminDisputeSummary'
+    AdminDisputeSummary:
+      type: object
+      properties:
+        disputeId:
+          type: string
+        orderId:
+          type: string
+        buyerId:
+          type: string
+        sellerId:
+          type: string
+        status:
+          type: string
+        openedAt:
+          type: string
+          format: date-time
+    AdminDisputeActionRequest:
+      type: object
+      required: [disputeId, action]
+      properties:
+        disputeId:
+          type: string
+        action:
+          type: string
+          enum: [assign, resolve, escalate, request_info]
+        notes:
+          type: string
+    AdminActionResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+    AuditEventRequest:
+      type: object
+      required: [entityType, entityId, action, actorId]
+      properties:
+        entityType:
+          type: string
+        entityId:
+          type: string
+        action:
+          type: string
+        actorId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time
+    EmailSubscriptionRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        source:
+          type: string
+        listId:
+          type: string
+    EmailUnsubscribeRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        reason:
+          type: string
+    EmailLifecycleRequest:
+      type: object
+      required: [templateId, recipient]
+      properties:
+        templateId:
+          type: string
+        recipient:
+          type: string
+          format: email
+        context:
+          type: object
+          additionalProperties: true
+    EmailConsentRequest:
+      type: object
+      required: [userId, marketingOptIn]
+      properties:
+        userId:
+          type: string
+        marketingOptIn:
+          type: boolean
+        consentChannel:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+    PaymentChargeRequest:
+      type: object
+      required: [orderId, amount, currency, paymentMethodId]
+      properties:
+        orderId:
+          type: string
+        amount:
+          type: integer
+          description: Amount in the smallest currency unit (e.g., cents).
+        currency:
+          type: string
+          example: USD
+        paymentMethodId:
+          type: string
+        captureImmediately:
+          type: boolean
+          default: true
+        receiptEmail:
+          type: string
+          format: email
+        metadata:
+          type: object
+          additionalProperties: true
+    PaymentChargeResponse:
+      type: object
+      properties:
+        chargeId:
+          type: string
+        status:
+          type: string
+          enum: [succeeded, pending, failed]
+        clientSecret:
+          type: string
+        receiptUrl:
+          type: string
+          format: uri
+        failureMessage:
+          type: string
