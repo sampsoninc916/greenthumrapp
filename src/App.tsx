@@ -17,6 +17,8 @@ import { toast } from 'sonner';
 import { isPlantResponseDto, type PlantResponseDto } from './interfaces/dtos';
 import { Skeleton } from './components/ui/skeleton';
 import { telemetryService } from './services/telemetry';
+import { useSeoMetadata } from './hooks/useSeoMetadata';
+import { SEO_DEFAULTS } from './constants/seo';
 
 const CreateNewPlantModal = lazy(() => import('./components/CreateNewPlantModal').then((module) => ({ default: module.CreateNewPlantModal })));
 const PlantDetailModal = lazy(() => import('./components/PlantDetailModal').then((module) => ({ default: module.PlantDetailModal })));
@@ -213,6 +215,84 @@ const App = () => {
 
   const isDetailRoute = Boolean(plantId);
   const shouldShowListing = !isDetailRoute || !isMobile;
+
+  const canonicalBaseUrl = useMemo(() => {
+    return SEO_DEFAULTS.url.replace(/\/$/, '');
+  }, []);
+
+  const plantSeoOverrides = useMemo(() => {
+    if (!selectedPlant) {
+      return null;
+    }
+
+    const siteName = SEO_DEFAULTS.siteName ?? 'GreenThumr Marketplace';
+    const primaryImage = (() => {
+      const candidate = selectedPlant.images?.find((image) => Boolean(image));
+      if (!candidate) {
+        return SEO_DEFAULTS.image;
+      }
+      if (/^https?:\/\//i.test(candidate)) {
+        return candidate;
+      }
+      return `${canonicalBaseUrl}${candidate.startsWith('/') ? '' : '/'}${candidate}`;
+    })();
+
+    const details: string[] = [];
+    if (selectedPlant.category) {
+      details.push(selectedPlant.category);
+    }
+    if (selectedPlant.location) {
+      details.push(selectedPlant.location);
+    }
+    const detailSuffix = details.length > 0 ? ` – ${details.join(' · ')}` : '';
+    const priceSnippet = Number.isFinite(selectedPlant.price)
+      ? `${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedPlant.price)} listing.`
+      : '';
+    const descriptionSource = selectedPlant.description?.trim() ??
+      'Discover more plant listings from trusted GreenThumr growers.';
+    const description = [
+      `${selectedPlant.name}${detailSuffix}.`,
+      priceSnippet,
+      descriptionSource,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const keywords = Array.from(
+      new Set(
+        [
+          selectedPlant.name,
+          selectedPlant.category,
+          selectedPlant.species,
+          selectedPlant.location,
+          selectedPlant.usdaZone,
+          'plant marketplace',
+          'buy plants online',
+          'rare houseplants',
+        ].filter((keyword): keyword is string => Boolean(keyword)),
+      ),
+    );
+
+    return {
+      title: `${selectedPlant.name} | ${siteName}`,
+      description,
+      keywords,
+      image: primaryImage,
+      url: `${canonicalBaseUrl}/plants/${selectedPlant.id}`,
+      type: 'product' as const,
+    };
+  }, [selectedPlant, canonicalBaseUrl]);
+
+  const seoOverrides = useMemo(() => {
+    if (plantSeoOverrides) {
+      return plantSeoOverrides;
+    }
+    return { url: `${canonicalBaseUrl}/` };
+  }, [plantSeoOverrides, canonicalBaseUrl]);
+
+  useSeoMetadata(seoOverrides);
 
   const filteredPlants = useMemo(() => {
     return plantsData.filter(plant => {
