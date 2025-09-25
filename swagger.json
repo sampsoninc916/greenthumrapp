@@ -1,0 +1,3047 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "OpenAPI definition for the Thumr plant marketplace backend. The specification is structured\nso it can be imported directly into Amazon API Gateway. Each operation is secured with a Cognito\nuser pool authorizer unless otherwise noted and integrates with a dedicated Lambda function via\nthe `x-amazon-apigateway-integration` vendor extension.\n",
+    "title": "Thumr Marketplace API",
+    "version": "1.0.0"
+  },
+  "host": "yourapiid.execute-api.us-east-1.amazonaws.com",
+  "basePath": "/prod",
+  "schemes": [
+    "https"
+  ],
+  "paths": {
+    "/admin/audit": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminAuditEvent"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Audit event accepted for processing."
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "description": "Persist an administrative audit event describing moderation or support actions.",
+        "operationId": "adminCreateAuditEvent",
+        "summary": "Record audit event",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.adminCreateAuditEventFunctionArn}/invocations"
+        }
+      }
+    },
+    "/admin/disputes": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "enum": [
+              "open",
+              "investigating",
+              "resolved",
+              "escalated"
+            ],
+            "in": "query",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "in": "query",
+            "name": "severity",
+            "type": "string"
+          },
+          {
+            "description": "Search term to filter disputes.",
+            "in": "query",
+            "name": "q",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of disputes for moderation.",
+            "schema": {
+              "$ref": "#/definitions/AdminDisputeListResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "description": "Retrieve buyer-seller disputes that require attention.",
+        "operationId": "adminListDisputes",
+        "summary": "List disputes",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.adminListDisputesFunctionArn}/invocations"
+        }
+      }
+    },
+    "/admin/disputes/{disputeId}/escalate": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "Identifier of the dispute to escalate.",
+            "in": "path",
+            "name": "disputeId",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/EscalateDisputeRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated dispute record.",
+            "schema": {
+              "$ref": "#/definitions/AdminDispute"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "description": "Escalate a dispute for additional investigation.",
+        "operationId": "adminEscalateDispute",
+        "summary": "Escalate dispute",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.adminEscalateDisputeFunctionArn}/invocations"
+        }
+      }
+    },
+    "/admin/disputes/{disputeId}/resolve": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "Identifier of the dispute to resolve.",
+            "in": "path",
+            "name": "disputeId",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ResolveDisputeRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated dispute record.",
+            "schema": {
+              "$ref": "#/definitions/AdminDispute"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "description": "Mark a dispute as resolved and document the resolution notes.",
+        "operationId": "adminResolveDispute",
+        "summary": "Resolve dispute",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.adminResolveDisputeFunctionArn}/invocations"
+        }
+      }
+    },
+    "/admin/listings": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "taken_down"
+            ],
+            "in": "query",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "description": "Filter for listings that have outstanding flags.",
+            "in": "query",
+            "name": "flagged",
+            "type": "boolean"
+          },
+          {
+            "description": "Free text search criteria.",
+            "in": "query",
+            "name": "q",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Moderation list of listings.",
+            "schema": {
+              "$ref": "#/definitions/AdminListingListResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "description": "Retrieve listings that are pending moderation or have been flagged.",
+        "operationId": "adminListListings",
+        "summary": "List listings for review",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.adminListListingsFunctionArn}/invocations"
+        }
+      }
+    },
+    "/admin/listings/{listingId}/approve": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "Listing identifier to approve.",
+            "in": "path",
+            "name": "listingId",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": false,
+            "schema": {
+              "$ref": "#/definitions/ApproveListingRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated listing record.",
+            "schema": {
+              "$ref": "#/definitions/AdminListing"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "description": "Approve a listing that has passed moderation review.",
+        "operationId": "adminApproveListing",
+        "summary": "Approve listing",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.adminApproveListingFunctionArn}/invocations"
+        }
+      }
+    },
+    "/admin/listings/{listingId}/takedown": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "Listing identifier to take down.",
+            "in": "path",
+            "name": "listingId",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TakeDownListingRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated listing record with the take-down status applied.",
+            "schema": {
+              "$ref": "#/definitions/AdminListing"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "description": "Remove a listing that violates marketplace policies.",
+        "operationId": "adminTakeDownListing",
+        "summary": "Take down listing",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.adminTakeDownListingFunctionArn}/invocations"
+        }
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "Filter results by user account status.",
+            "enum": [
+              "active",
+              "pending",
+              "suspended",
+              "under_review"
+            ],
+            "in": "query",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "description": "Filter results by role.",
+            "enum": [
+              "buyer",
+              "seller",
+              "admin"
+            ],
+            "in": "query",
+            "name": "role",
+            "type": "string"
+          },
+          {
+            "description": "Free text search across name and email.",
+            "in": "query",
+            "name": "q",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Moderation list of users.",
+            "schema": {
+              "$ref": "#/definitions/AdminUserListResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "description": "Retrieve users that require moderation or review.",
+        "operationId": "adminListUsers",
+        "summary": "List users for moderation",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.adminListUsersFunctionArn}/invocations"
+        }
+      }
+    },
+    "/admin/users/{userId}/status": {
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "Identifier of the user to update.",
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateAdminUserStatusRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated user record.",
+            "schema": {
+              "$ref": "#/definitions/AdminUser"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "description": "Modify the moderation status for a user account.",
+        "operationId": "adminUpdateUserStatus",
+        "summary": "Update user status",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.adminUpdateUserStatusFunctionArn}/invocations"
+        }
+      }
+    },
+    "/email/consent": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/EmailConsentRecord"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consent recorded."
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [],
+        "tags": [
+          "Email"
+        ],
+        "description": "Persist marketing consent updates from external forms.",
+        "operationId": "emailRecordConsent",
+        "summary": "Record consent preferences",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.emailConsentFunctionArn}/invocations"
+        }
+      }
+    },
+    "/email/lifecycle": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/EmailLifecycleRequest"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Lifecycle email scheduled for delivery."
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [],
+        "tags": [
+          "Email"
+        ],
+        "description": "Queue a lifecycle email using a pre-defined template and dynamic payload data.",
+        "operationId": "emailTriggerLifecycle",
+        "summary": "Trigger lifecycle email",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.emailLifecycleFunctionArn}/invocations"
+        }
+      }
+    },
+    "/email/subscribe": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/EmailSubscribeRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscription status.",
+            "schema": {
+              "$ref": "#/definitions/EmailSubscribeResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [],
+        "tags": [
+          "Email"
+        ],
+        "description": "Register a contact for marketing communications and persist consent metadata.",
+        "operationId": "emailSubscribe",
+        "summary": "Subscribe contact to marketing list",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.emailSubscribeFunctionArn}/invocations"
+        }
+      }
+    },
+    "/email/templates-sync": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/EmailTemplatesSyncRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Templates synchronized."
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [],
+        "tags": [
+          "Email"
+        ],
+        "description": "Upsert lifecycle email templates on the server prior to sending events.",
+        "operationId": "emailTemplatesSync",
+        "summary": "Synchronize lifecycle templates",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.emailTemplatesSyncFunctionArn}/invocations"
+        }
+      }
+    },
+    "/email/unsubscribe": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/EmailUnsubscribeRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unsubscription status.",
+            "schema": {
+              "$ref": "#/definitions/EmailUnsubscribeResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [],
+        "tags": [
+          "Email"
+        ],
+        "description": "Remove a contact from marketing communications and update consent records.",
+        "operationId": "emailUnsubscribe",
+        "summary": "Unsubscribe contact",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.emailUnsubscribeFunctionArn}/invocations"
+        }
+      }
+    },
+    "/messages/read": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MarkThreadReadRequest"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Read state updated."
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Messages"
+        ],
+        "description": "Mark a thread or individual messages as read by the authenticated user.",
+        "operationId": "markMessagesRead",
+        "summary": "Mark messages as read",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.markThreadReadFunctionArn}/invocations"
+        }
+      }
+    },
+    "/messages/send": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SendMessageRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message accepted and queued for delivery.",
+            "schema": {
+              "$ref": "#/definitions/ThreadMessage"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Messages"
+        ],
+        "description": "Send a message within an existing buyer-seller thread.",
+        "operationId": "sendMessage",
+        "summary": "Send a message",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.sendMessageFunctionArn}/invocations"
+        }
+      }
+    },
+    "/messages/threads": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/StartThreadRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Conversation thread created.",
+            "schema": {
+              "$ref": "#/definitions/MessageThread"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Messages"
+        ],
+        "description": "Begin a new buyer-seller conversation tied to a specific plant listing.",
+        "operationId": "createMessageThread",
+        "summary": "Start a conversation thread",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.createThreadFunctionArn}/invocations"
+        }
+      }
+    },
+    "/messages/unread-count": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Unread message counts.",
+            "schema": {
+              "$ref": "#/definitions/UnreadCountResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Messages"
+        ],
+        "description": "Retrieve unread message totals for the authenticated user.",
+        "operationId": "getUnreadMessageCount",
+        "summary": "Get unread message count",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.getUnreadCountFunctionArn}/invocations"
+        }
+      }
+    },
+    "/payments/charge": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PaymentChargeRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Charge result from the payment processor.",
+            "schema": {
+              "$ref": "#/definitions/PaymentChargeResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [],
+        "tags": [
+          "Payments"
+        ],
+        "description": "Create a charge for a checkout transaction using the configured payment processor.",
+        "operationId": "createPaymentCharge",
+        "summary": "Process payment charge",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.paymentsChargeFunctionArn}/invocations"
+        }
+      }
+    },
+    "/plants": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "Page number to fetch when using page-based pagination.",
+            "in": "query",
+            "minimum": 1,
+            "name": "page",
+            "type": "integer"
+          },
+          {
+            "description": "Maximum number of items to return when paging by page number.",
+            "in": "query",
+            "maximum": 100,
+            "minimum": 1,
+            "name": "pageSize",
+            "type": "integer"
+          },
+          {
+            "description": "Continuation token returned by a previous response for cursor-based pagination.",
+            "in": "query",
+            "name": "cursor",
+            "type": "string"
+          },
+          {
+            "description": "Filter listings by category slug.",
+            "in": "query",
+            "name": "category",
+            "type": "string"
+          },
+          {
+            "description": "Free text search applied to listing titles and descriptions.",
+            "in": "query",
+            "name": "search",
+            "type": "string"
+          },
+          {
+            "description": "Restrict results to listings that support the specified fulfillment method.",
+            "enum": [
+              "LOCAL_PICKUP",
+              "LOCAL_DELIVERY",
+              "REGIONAL_SHIPPING",
+              "NATIONWIDE_SHIPPING"
+            ],
+            "in": "query",
+            "name": "deliveryMethod",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated plant listings.",
+            "schema": {
+              "$ref": "#/definitions/PlantListResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [],
+        "tags": [
+          "Plants"
+        ],
+        "description": "Retrieve paginated plant listings with optional cursor-based pagination.",
+        "operationId": "listPlants",
+        "summary": "List plant listings",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.listPlantsFunctionArn}/invocations"
+        }
+      },
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreatePlantRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Plant listing created successfully.",
+            "schema": {
+              "$ref": "#/definitions/PlantResponseEnvelope"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Plants"
+        ],
+        "description": "Create a new plant listing for the authenticated seller.",
+        "operationId": "createPlant",
+        "summary": "Create a plant listing",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.createPlantFunctionArn}/invocations"
+        }
+      },
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "Identifier of the plant listing to update.",
+            "in": "query",
+            "name": "plantId",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdatePlantRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plant listing updated successfully.",
+            "schema": {
+              "$ref": "#/definitions/PlantResponseEnvelope"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Plants"
+        ],
+        "description": "Update mutable fields on an existing plant listing. Only provided fields are modified.",
+        "operationId": "updatePlant",
+        "summary": "Update a plant listing",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.updatePlantFunctionArn}/invocations"
+        }
+      }
+    },
+    "/reviews": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SubmitReviewRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Review recorded.",
+            "schema": {
+              "$ref": "#/definitions/SubmitReviewResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Reviews"
+        ],
+        "description": "Submit a review for a completed purchase.",
+        "operationId": "submitReview",
+        "summary": "Submit a review",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.submitReviewFunctionArn}/invocations"
+        }
+      }
+    },
+    "/reviews/summary": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "Identifier of the plant listing whose seller metrics should be returned.",
+            "in": "query",
+            "name": "plantId",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregated seller review metrics.",
+            "schema": {
+              "$ref": "#/definitions/ReviewSummary"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Reviews"
+        ],
+        "description": "Retrieve aggregate review metrics for the seller of a plant listing.",
+        "operationId": "getReviewSummary",
+        "summary": "Get review summary",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.getReviewSummaryFunctionArn}/invocations"
+        }
+      }
+    },
+    "/uploads/cleanup": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UploadCleanupRequest"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Cleanup task accepted."
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Uploads"
+        ],
+        "description": "Delete uploaded objects that were not attached to a completed plant listing.",
+        "operationId": "cleanupUploads",
+        "summary": "Remove orphaned uploads",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.cleanupUploadsFunctionArn}/invocations"
+        }
+      }
+    },
+    "/uploads/presign": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PresignUploadsRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Presigned upload targets returned.",
+            "schema": {
+              "$ref": "#/definitions/PresignUploadsResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Uploads"
+        ],
+        "description": "Generate presigned S3 upload URLs for the provided media files.",
+        "operationId": "createPresignedUploads",
+        "summary": "Create presigned upload targets",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.createUploadIntentFunctionArn}/invocations"
+        }
+      }
+    },
+    "/uploads/scan": {
+      "post": {
+        "consumes": [
+          "multipart/form-data"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "collectionFormat": "csv",
+            "in": "formData",
+            "items": {
+              "format": "binary",
+              "type": "string"
+            },
+            "name": "files",
+            "required": true,
+            "type": "array"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scan verdict for each uploaded file.",
+            "schema": {
+              "$ref": "#/definitions/UploadScanResponse"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Uploads"
+        ],
+        "description": "Perform antivirus and policy checks against uploaded media files prior to publishing a listing.",
+        "operationId": "scanUploads",
+        "summary": "Scan uploaded media",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.scanUploadFunctionArn}/invocations"
+        }
+      }
+    },
+    "/users": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserCreateRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "User profile created.",
+            "schema": {
+              "$ref": "#/definitions/UserProfile"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "description": "Create or initialize a profile for the authenticated Cognito user after signup.",
+        "operationId": "createUserProfile",
+        "summary": "Create user profile",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.createUserFunctionArn}/invocations"
+        }
+      }
+    },
+    "/users/me": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authenticated user profile.",
+            "schema": {
+              "$ref": "#/definitions/UserProfile"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "description": "Retrieve the profile details for the authenticated user.",
+        "operationId": "getCurrentUserProfile",
+        "summary": "Get current user profile",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.getCurrentUserFunctionArn}/invocations"
+        }
+      },
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserUpdateRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated user profile.",
+            "schema": {
+              "$ref": "#/definitions/UserProfile"
+            }
+          },
+          "default": {
+            "description": "Error payload returned when the request fails.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "description": "Update profile details or communication preferences for the authenticated user.",
+        "operationId": "updateCurrentUserProfile",
+        "summary": "Update current user profile",
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${stageVariables.updateCurrentUserFunctionArn}/invocations"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "AdminAuditEvent": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "actorId": {
+          "type": "string"
+        },
+        "entityId": {
+          "type": "string"
+        },
+        "entityType": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    "AdminDispute": {
+      "properties": {
+        "buyerId": {
+          "type": "string"
+        },
+        "buyerName": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "listingId": {
+          "type": "string"
+        },
+        "listingTitle": {
+          "type": "string"
+        },
+        "openedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "sellerName": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "open",
+            "investigating",
+            "resolved",
+            "escalated"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "listingId",
+        "buyerId",
+        "sellerId",
+        "status"
+      ],
+      "type": "object"
+    },
+    "AdminDisputeListResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/definitions/AdminDispute"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "type": "string",
+          "x-nullable": true
+        }
+      },
+      "type": "object"
+    },
+    "AdminListing": {
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "compliance": {
+          "$ref": "#/definitions/PlantCompliance"
+        },
+        "flaggedCount": {
+          "type": "integer"
+        },
+        "flaggedReason": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "livePlantWarranty": {
+          "$ref": "#/definitions/LivePlantWarranty"
+        },
+        "price": {
+          "format": "float",
+          "type": "number"
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "sellerName": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "taken_down",
+            "flagged"
+          ],
+          "type": "string"
+        },
+        "submittedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status",
+        "sellerId"
+      ],
+      "type": "object"
+    },
+    "AdminListingListResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/definitions/AdminListing"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "type": "string",
+          "x-nullable": true
+        }
+      },
+      "type": "object"
+    },
+    "AdminUser": {
+      "properties": {
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "email": {
+          "format": "email",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lastActiveAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "reportsCount": {
+          "type": "integer"
+        },
+        "role": {
+          "enum": [
+            "buyer",
+            "seller",
+            "admin"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "pending",
+            "suspended",
+            "under_review"
+          ],
+          "type": "string"
+        },
+        "suspensionsCount": {
+          "type": "integer"
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "role",
+        "status"
+      ],
+      "type": "object"
+    },
+    "AdminUserListResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/definitions/AdminUser"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "type": "string",
+          "x-nullable": true
+        }
+      },
+      "type": "object"
+    },
+    "ApproveListingRequest": {
+      "properties": {
+        "notes": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "CardPaymentMethod": {
+      "properties": {
+        "cardNumber": {
+          "type": "string"
+        },
+        "cvc": {
+          "type": "string"
+        },
+        "expMonth": {
+          "type": "string"
+        },
+        "expYear": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "card"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "cardNumber",
+        "expMonth",
+        "expYear",
+        "cvc"
+      ],
+      "type": "object"
+    },
+    "CreatePlantRequest": {
+      "properties": {
+        "media": {
+          "items": {
+            "$ref": "#/definitions/UploadedMediaReference"
+          },
+          "type": "array"
+        },
+        "plant": {
+          "$ref": "#/definitions/NewPlant"
+        },
+        "role": {
+          "description": "Optional seller role override supplied by the client.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plant"
+      ],
+      "type": "object"
+    },
+    "EmailConsentRecord": {
+      "properties": {
+        "consentAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "consentSource": {
+          "type": "string"
+        },
+        "email": {
+          "format": "email",
+          "type": "string"
+        },
+        "gdprConsent": {
+          "type": "boolean"
+        },
+        "ipAddress": {
+          "type": "string"
+        },
+        "marketingConsent": {
+          "type": "boolean"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "required": [
+        "email",
+        "marketingConsent",
+        "gdprConsent",
+        "consentAt",
+        "consentSource"
+      ],
+      "type": "object"
+    },
+    "EmailLifecycleRequest": {
+      "properties": {
+        "event": {
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "sendAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "templateId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "templateId",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "EmailSubscribeRequest": {
+      "properties": {
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "consent": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "email": {
+          "format": "email",
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "incentives": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "email",
+        "consent"
+      ],
+      "type": "object"
+    },
+    "EmailSubscribeResponse": {
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "subscriptionId": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "EmailTemplateDescriptor": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "event": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "serverPath": {
+          "type": "string"
+        },
+        "templateId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "templateId",
+        "name",
+        "description",
+        "serverPath"
+      ],
+      "type": "object"
+    },
+    "EmailTemplatesSyncRequest": {
+      "properties": {
+        "templates": {
+          "items": {
+            "$ref": "#/definitions/EmailTemplateDescriptor"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "templates"
+      ],
+      "type": "object"
+    },
+    "EmailUnsubscribeRequest": {
+      "properties": {
+        "consentSource": {
+          "type": "string"
+        },
+        "email": {
+          "format": "email",
+          "type": "string"
+        },
+        "gdprDelete": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "type": "object"
+    },
+    "EmailUnsubscribeResponse": {
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "properties": {
+        "code": {
+          "description": "Machine readable error or reason code.",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "description": "Additional context about the failure.",
+          "type": "object"
+        },
+        "message": {
+          "description": "Human readable description of the failure.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "EscalateDisputeRequest": {
+      "properties": {
+        "escalationReason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "escalationReason"
+      ],
+      "type": "object"
+    },
+    "LivePlantWarranty": {
+      "properties": {
+        "durationDays": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "isOffered": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "isOffered"
+      ],
+      "type": "object"
+    },
+    "MarkThreadReadRequest": {
+      "properties": {
+        "messageIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "type": "object"
+    },
+    "MessageThread": {
+      "properties": {
+        "buyerId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/definitions/ThreadMessage"
+          },
+          "type": "array"
+        },
+        "plantId": {
+          "type": "string"
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "unreadCount": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "plantId",
+        "sellerId"
+      ],
+      "type": "object"
+    },
+    "NewPlant": {
+      "properties": {
+        "availableZipRanges": {
+          "items": {
+            "$ref": "#/definitions/ZipRange"
+          },
+          "type": "array"
+        },
+        "careInstructions": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "compliance": {
+          "$ref": "#/definitions/PlantCompliance"
+        },
+        "condition": {
+          "type": "string"
+        },
+        "cultivar": {
+          "type": "string"
+        },
+        "deliveryMethods": {
+          "items": {
+            "enum": [
+              "LOCAL_PICKUP",
+              "LOCAL_DELIVERY",
+              "REGIONAL_SHIPPING",
+              "NATIONWIDE_SHIPPING"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "height": {
+          "type": "string"
+        },
+        "lightPreference": {
+          "type": "string"
+        },
+        "livePlantWarranty": {
+          "$ref": "#/definitions/LivePlantWarranty"
+        },
+        "location": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "packagingNotes": {
+          "type": "string"
+        },
+        "potSize": {
+          "type": "string"
+        },
+        "price": {
+          "format": "float",
+          "type": "number"
+        },
+        "soilPreference": {
+          "type": "string"
+        },
+        "species": {
+          "type": "string"
+        },
+        "usdaZone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "price",
+        "location",
+        "category",
+        "deliveryMethods",
+        "availableZipRanges"
+      ],
+      "type": "object"
+    },
+    "PaymentBillingDetails": {
+      "properties": {
+        "email": {
+          "format": "email",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PaymentChargeRequest": {
+      "properties": {
+        "amount": {
+          "format": "float",
+          "type": "number"
+        },
+        "billingDetails": {
+          "$ref": "#/definitions/PaymentBillingDetails"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "paymentMethod": {
+          "$ref": "#/definitions/CardPaymentMethod"
+        }
+      },
+      "required": [
+        "amount",
+        "currency",
+        "paymentMethod"
+      ],
+      "type": "object"
+    },
+    "PaymentChargeResponse": {
+      "properties": {
+        "errorMessage": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "transactionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "success"
+      ],
+      "type": "object"
+    },
+    "Plant": {
+      "properties": {
+        "availableZipRanges": {
+          "items": {
+            "$ref": "#/definitions/ZipRange"
+          },
+          "type": "array"
+        },
+        "careInstructions": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "compliance": {
+          "$ref": "#/definitions/PlantCompliance"
+        },
+        "condition": {
+          "type": "string"
+        },
+        "cultivar": {
+          "type": "string"
+        },
+        "deliveryMethods": {
+          "items": {
+            "enum": [
+              "LOCAL_PICKUP",
+              "LOCAL_DELIVERY",
+              "REGIONAL_SHIPPING",
+              "NATIONWIDE_SHIPPING"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "height": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "images": {
+          "items": {
+            "format": "uri",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lightPreference": {
+          "type": "string"
+        },
+        "livePlantWarranty": {
+          "$ref": "#/definitions/LivePlantWarranty"
+        },
+        "location": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "packagingNotes": {
+          "type": "string"
+        },
+        "postedDate": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "potSize": {
+          "type": "string"
+        },
+        "price": {
+          "format": "float",
+          "type": "number"
+        },
+        "seller": {
+          "type": "string"
+        },
+        "sellerAvatar": {
+          "format": "uri",
+          "type": "string"
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "sellerRating": {
+          "format": "float",
+          "type": "number"
+        },
+        "sellerReviewCount": {
+          "type": "integer"
+        },
+        "soilPreference": {
+          "type": "string"
+        },
+        "species": {
+          "type": "string"
+        },
+        "usdaZone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "price",
+        "images",
+        "location",
+        "category",
+        "seller",
+        "sellerAvatar",
+        "sellerRating",
+        "condition",
+        "description",
+        "careInstructions",
+        "potSize",
+        "height",
+        "postedDate",
+        "deliveryMethods",
+        "availableZipRanges"
+      ],
+      "type": "object"
+    },
+    "PlantCompliance": {
+      "properties": {
+        "arrivalGuaranteeAcknowledged": {
+          "type": "boolean"
+        },
+        "phytosanitaryAcknowledged": {
+          "type": "boolean"
+        },
+        "phytosanitaryDetails": {
+          "type": "string"
+        },
+        "requiresPhytosanitaryCertificate": {
+          "type": "boolean"
+        },
+        "restrictedStates": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "restrictedStatesAcknowledged": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "restrictedStates",
+        "restrictedStatesAcknowledged",
+        "requiresPhytosanitaryCertificate",
+        "phytosanitaryAcknowledged",
+        "arrivalGuaranteeAcknowledged"
+      ],
+      "type": "object"
+    },
+    "PlantListResponse": {
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "hasMore": {
+          "type": "boolean"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/definitions/Plant"
+          },
+          "type": "array"
+        },
+        "nextPage": {
+          "type": "integer"
+        },
+        "page": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pageSize": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "totalItems": {
+          "type": "integer"
+        },
+        "totalPages": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "page",
+        "pageSize",
+        "hasMore"
+      ],
+      "type": "object"
+    },
+    "PlantResponseEnvelope": {
+      "description": "Wrapper used by listing mutations.",
+      "properties": {
+        "plant": {
+          "$ref": "#/definitions/Plant"
+        }
+      },
+      "type": "object"
+    },
+    "PresignUploadFile": {
+      "properties": {
+        "clientUploadId": {
+          "type": "string"
+        },
+        "contentLength": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "clientUploadId",
+        "fileName",
+        "contentType",
+        "contentLength"
+      ],
+      "type": "object"
+    },
+    "PresignUploadsRequest": {
+      "properties": {
+        "files": {
+          "items": {
+            "$ref": "#/definitions/PresignUploadFile"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "files"
+      ],
+      "type": "object"
+    },
+    "PresignUploadsResponse": {
+      "properties": {
+        "uploads": {
+          "items": {
+            "$ref": "#/definitions/PresignedUploadTarget"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "uploads"
+      ],
+      "type": "object"
+    },
+    "PresignedUploadTarget": {
+      "properties": {
+        "clientUploadId": {
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "key": {
+          "type": "string"
+        },
+        "uploadUrl": {
+          "format": "uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "clientUploadId",
+        "key",
+        "uploadUrl"
+      ],
+      "type": "object"
+    },
+    "ResolveDisputeRequest": {
+      "properties": {
+        "resolutionNotes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "resolutionNotes"
+      ],
+      "type": "object"
+    },
+    "ReviewSummary": {
+      "properties": {
+        "sellerRating": {
+          "format": "float",
+          "type": "number"
+        },
+        "totalReviews": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "SendMessageRequest": {
+      "properties": {
+        "attachments": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "body": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "body"
+      ],
+      "type": "object"
+    },
+    "StartThreadRequest": {
+      "properties": {
+        "initialMessage": {
+          "type": "string"
+        },
+        "plantId": {
+          "type": "string"
+        },
+        "sellerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plantId",
+        "sellerId"
+      ],
+      "type": "object"
+    },
+    "SubmitReviewRequest": {
+      "properties": {
+        "comment": {
+          "type": "string"
+        },
+        "orderId": {
+          "type": "string"
+        },
+        "plantId": {
+          "type": "string"
+        },
+        "rating": {
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "plantId",
+        "rating"
+      ],
+      "type": "object"
+    },
+    "SubmitReviewResponse": {
+      "properties": {
+        "comment": {
+          "type": "string"
+        },
+        "plantId": {
+          "type": "string"
+        },
+        "rating": {
+          "format": "float",
+          "type": "number"
+        },
+        "reviewId": {
+          "type": "string"
+        },
+        "sellerRating": {
+          "format": "float",
+          "type": "number"
+        },
+        "totalReviews": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "TakeDownListingRequest": {
+      "properties": {
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "type": "object"
+    },
+    "ThreadMessage": {
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "senderId": {
+          "type": "string"
+        },
+        "senderType": {
+          "enum": [
+            "buyer",
+            "seller",
+            "system"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "sent",
+            "delivered",
+            "read"
+          ],
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "threadId",
+        "body",
+        "senderId"
+      ],
+      "type": "object"
+    },
+    "UnreadCountResponse": {
+      "properties": {
+        "unreadCount": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "unreadCount"
+      ],
+      "type": "object"
+    },
+    "UpdateAdminUserStatusRequest": {
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "pending",
+            "suspended",
+            "under_review"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "UpdatePlantRequest": {
+      "additionalProperties": false,
+      "description": "Fields that should be updated on the plant listing.",
+      "properties": {
+        "availableZipRanges": {
+          "items": {
+            "$ref": "#/definitions/ZipRange"
+          },
+          "type": "array"
+        },
+        "careInstructions": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "compliance": {
+          "$ref": "#/definitions/PlantCompliance"
+        },
+        "condition": {
+          "type": "string"
+        },
+        "cultivar": {
+          "type": "string"
+        },
+        "deliveryMethods": {
+          "items": {
+            "enum": [
+              "LOCAL_PICKUP",
+              "LOCAL_DELIVERY",
+              "REGIONAL_SHIPPING",
+              "NATIONWIDE_SHIPPING"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "height": {
+          "type": "string"
+        },
+        "images": {
+          "items": {
+            "format": "uri",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lightPreference": {
+          "type": "string"
+        },
+        "livePlantWarranty": {
+          "$ref": "#/definitions/LivePlantWarranty"
+        },
+        "location": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "packagingNotes": {
+          "type": "string"
+        },
+        "potSize": {
+          "type": "string"
+        },
+        "price": {
+          "format": "float",
+          "type": "number"
+        },
+        "soilPreference": {
+          "type": "string"
+        },
+        "species": {
+          "type": "string"
+        },
+        "usdaZone": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "UploadCleanupRequest": {
+      "properties": {
+        "keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "keys"
+      ],
+      "type": "object"
+    },
+    "UploadScanResponse": {
+      "properties": {
+        "results": {
+          "items": {
+            "$ref": "#/definitions/UploadScanResult"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "results"
+      ],
+      "type": "object"
+    },
+    "UploadScanResult": {
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fileName",
+        "allowed"
+      ],
+      "type": "object"
+    },
+    "UploadedMediaReference": {
+      "properties": {
+        "contentType": {
+          "type": "string"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "fileName",
+        "contentType"
+      ],
+      "type": "object"
+    },
+    "UserConsents": {
+      "properties": {
+        "marketingEmailOptIn": {
+          "type": "boolean"
+        },
+        "marketingGlobalUnsubscribed": {
+          "type": "boolean"
+        },
+        "marketingSmsOptIn": {
+          "type": "boolean"
+        },
+        "privacyAcceptedAt": {
+          "format": "date-time",
+          "type": "string",
+          "x-nullable": true
+        },
+        "termsAcceptedAt": {
+          "format": "date-time",
+          "type": "string",
+          "x-nullable": true
+        }
+      },
+      "type": "object"
+    },
+    "UserCreateRequest": {
+      "properties": {
+        "consents": {
+          "$ref": "#/definitions/UserConsents"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "buyer",
+            "seller",
+            "admin"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "UserProfile": {
+      "properties": {
+        "consents": {
+          "$ref": "#/definitions/UserConsents"
+        },
+        "description": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "joinedDate": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "plantListingIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "profilePic": {
+          "type": "string"
+        },
+        "savedListingIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "subscription": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "userId",
+        "fullName",
+        "joinedDate",
+        "profilePic",
+        "description",
+        "subscription",
+        "consents"
+      ],
+      "type": "object"
+    },
+    "UserUpdateRequest": {
+      "properties": {
+        "consents": {
+          "$ref": "#/definitions/UserConsents"
+        },
+        "description": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "profilePic": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ZipRange": {
+      "properties": {
+        "end": {
+          "description": "Ending ZIP code in the allowed delivery range.",
+          "type": "string"
+        },
+        "start": {
+          "description": "Starting ZIP code in the allowed delivery range.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "type": "object"
+    }
+  },
+  "securityDefinitions": {
+    "cognitoAuthorizer": {
+      "in": "header",
+      "name": "Authorization",
+      "type": "apiKey",
+      "x-amazon-apigateway-authorizer": {
+        "providerARNs": [
+          "arn:aws:cognito-idp:us-east-1:123456789012:userpool/us-east-1_example"
+        ],
+        "type": "cognito_user_pools"
+      },
+      "x-amazon-apigateway-authtype": "cognito_user_pools"
+    }
+  },
+  "security": [
+    {
+      "cognitoAuthorizer": []
+    }
+  ],
+  "tags": [
+    {
+      "description": "Plant marketplace listings and management.",
+      "name": "Plants"
+    },
+    {
+      "description": "Asset uploads and media hygiene.",
+      "name": "Uploads"
+    },
+    {
+      "description": "Authenticated user profile management.",
+      "name": "Users"
+    },
+    {
+      "description": "Buyer and seller messaging workflows.",
+      "name": "Messages"
+    },
+    {
+      "description": "Buyer review submission and seller rating summaries.",
+      "name": "Reviews"
+    },
+    {
+      "description": "Administrative review, moderation, and auditing operations.",
+      "name": "Admin"
+    },
+    {
+      "description": "Marketing and lifecycle email orchestration.",
+      "name": "Email"
+    },
+    {
+      "description": "Checkout and payment processing.",
+      "name": "Payments"
+    }
+  ],
+  "x-amazon-apigateway-cors": {
+    "allowHeaders": [
+      "Authorization",
+      "Content-Type",
+      "X-Amz-Date",
+      "X-Amz-Security-Token",
+      "X-Requested-With"
+    ],
+    "allowMethods": [
+      "GET",
+      "POST",
+      "PUT",
+      "OPTIONS"
+    ],
+    "allowOrigins": [
+      "*"
+    ]
+  },
+  "x-amazon-apigateway-importexport-version": "1.0",
+  "x-components": {
+    "responses": {
+      "ErrorResponse": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "description": "Error payload returned when the request fails."
+      }
+    }
+  }
+}
