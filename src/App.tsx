@@ -1,10 +1,20 @@
 import { Suspense, lazy, useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import type { FormEvent } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { PlantCard } from './components/PlantCard';
 import { Button } from './components/ui/button';
 import { MobileActionBar } from './components/MobileActionBar';
-import { SlidersHorizontal, Grid3X3, List } from 'lucide-react';
+import {
+  SlidersHorizontal,
+  Grid3X3,
+  List,
+  Leaf,
+  Sprout,
+  Droplets,
+  HeartHandshake,
+  Quote,
+} from 'lucide-react';
 import './index.css';
 import './App.css';
 import type { Plant } from './interfaces/Plant';
@@ -19,6 +29,8 @@ import { Skeleton } from './components/ui/skeleton';
 import { telemetryService } from './services/telemetry';
 import { useSeoMetadata } from './hooks/useSeoMetadata';
 import { SEO_DEFAULTS } from './constants/seo';
+import { Input } from './components/ui/input';
+import { Label } from './components/ui/label';
 
 const CreateNewPlantModal = lazy(() => import('./components/CreateNewPlantModal').then((module) => ({ default: module.CreateNewPlantModal })));
 const PlantDetailModal = lazy(() => import('./components/PlantDetailModal').then((module) => ({ default: module.PlantDetailModal })));
@@ -79,6 +91,8 @@ const App = () => {
   const [nextPage, setNextPage] = useState<number | null>(1);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [totalAvailable, setTotalAvailable] = useState<number | null>(null);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [isSubmittingNewsletter, setIsSubmittingNewsletter] = useState(false);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { plantId } = useParams<{ plantId?: string }>();
@@ -405,6 +419,44 @@ const App = () => {
     }
   };
 
+  const handleExploreCategories = useCallback(() => {
+    setIsSidebarOpen(true);
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        const marketplace = document.getElementById('marketplace-grid');
+        marketplace?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, []);
+
+  const handleJoinNewsletterFocus = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const input = document.getElementById('newsletter-email') as HTMLInputElement | null;
+    input?.focus({ preventScroll: false });
+  }, []);
+
+  const handleNewsletterSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      if (!newsletterEmail.trim()) {
+        toast.error('Please add your email so we can send growing tips.');
+        handleJoinNewsletterFocus();
+        return;
+      }
+
+      setIsSubmittingNewsletter(true);
+      window.setTimeout(() => {
+        setIsSubmittingNewsletter(false);
+        setNewsletterEmail('');
+        toast.success('Welcome to the GreenThumr grower circle!');
+      }, 750);
+    },
+    [handleJoinNewsletterFocus, newsletterEmail],
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
       {shouldShowListing && (
@@ -423,6 +475,210 @@ const App = () => {
             />
 
             <main className="flex-1 px-4 pb-32 pt-5 sm:px-6 sm:pb-10 sm:pt-6">
+              <section className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-500 px-6 py-10 text-white shadow-lg sm:px-10">
+                <div className="absolute inset-y-0 right-0 hidden max-w-xs overflow-hidden sm:block">
+                  <div className="h-full w-full bg-gradient-to-t from-emerald-700/30 to-transparent" />
+                </div>
+                <div className="relative grid gap-10 lg:grid-cols-[1fr_420px] lg:items-center">
+                  <div className="space-y-6">
+                    <div className="inline-flex items-center rounded-full bg-white/10 px-4 py-1 text-sm font-medium backdrop-blur">
+                      Fresh finds for plant lovers
+                    </div>
+                    <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+                      Grow your urban jungle with trusted GreenThumr growers
+                    </h1>
+                    <p className="max-w-2xl text-lg text-emerald-50">
+                      Discover rare houseplants, resilient natives, and beautifully propagated cuttings sourced from a passionate community of growers who care as much as you do.
+                    </p>
+                    <ul className="grid gap-4 text-sm font-medium text-emerald-50 sm:grid-cols-2">
+                      <li className="flex items-start gap-3">
+                        <Leaf className="mt-0.5 h-5 w-5 text-lime-200" />
+                        Sustainably raised plants with transparent growing notes.
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <Sprout className="mt-0.5 h-5 w-5 text-lime-200" />
+                        Hand-picked selections from growers in your climate zone.
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <Droplets className="mt-0.5 h-5 w-5 text-lime-200" />
+                        Care guides for thriving greenery, from seedlings to mature specimens.
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <HeartHandshake className="mt-0.5 h-5 w-5 text-lime-200" />
+                        Safe transactions and community support at every step.
+                      </li>
+                    </ul>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <Button size="lg" onClick={handleAddListing} className="bg-white text-emerald-700 hover:bg-emerald-50">
+                        Become a Seller
+                      </Button>
+                      <Button size="lg" variant="outline" onClick={handleExploreCategories} className="border-white text-white hover:bg-white/10">
+                        Explore Categories
+                      </Button>
+                      <Button
+                        size="lg"
+                        variant="secondary"
+                        onClick={() => {
+                          handleJoinNewsletterFocus();
+                          if (typeof window !== 'undefined') {
+                            window.requestAnimationFrame(() => {
+                              document.getElementById('newsletter-section')?.scrollIntoView({ behavior: 'smooth' });
+                            });
+                          }
+                        }}
+                        className="bg-emerald-700 text-white hover:bg-emerald-600"
+                      >
+                        Join the Newsletter
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="relative hidden overflow-hidden rounded-2xl bg-emerald-900/40 shadow-2xl sm:block">
+                    <img
+                      src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=900&q=80"
+                      alt="A lush shelf of thriving indoor plants"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-emerald-900/30" aria-hidden="true" />
+                  </div>
+                </div>
+              </section>
+
+              <section className="mb-12 grid gap-6 rounded-3xl border border-emerald-100 bg-white/70 p-6 shadow-sm backdrop-blur-sm sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  {
+                    title: 'Expertly curated collections',
+                    description: 'Shop by light level, pet safety, or growth habit so every plant thrives in its new home.',
+                    icon: <Grid3X3 className="h-6 w-6 text-emerald-600" aria-hidden="true" />,
+                  },
+                  {
+                    title: 'Grower-first marketplace',
+                    description: 'List your plants in minutes with transparent pricing and dedicated seller analytics.',
+                    icon: <Sprout className="h-6 w-6 text-emerald-600" aria-hidden="true" />,
+                  },
+                  {
+                    title: 'Climate-conscious shipping',
+                    description: 'Insulated, eco-friendly packaging and delivery windows designed around plant health.',
+                    icon: <Droplets className="h-6 w-6 text-emerald-600" aria-hidden="true" />,
+                  },
+                  {
+                    title: 'Community knowledge base',
+                    description: 'Access tutorials, live Q&As, and seasonal plant care workshops led by master growers.',
+                    icon: <HeartHandshake className="h-6 w-6 text-emerald-600" aria-hidden="true" />,
+                  },
+                ].map((item) => (
+                  <article key={item.title} className="rounded-2xl bg-gradient-to-br from-white to-emerald-50 p-5 shadow-sm">
+                    <div className="mb-4 inline-flex rounded-full bg-emerald-100 p-3 text-emerald-700">
+                      {item.icon}
+                    </div>
+                    <h2 className="mb-2 text-lg font-semibold text-emerald-900">{item.title}</h2>
+                    <p className="text-sm text-muted-foreground">{item.description}</p>
+                  </article>
+                ))}
+              </section>
+
+              <section id="newsletter-section" className="mb-12 grid gap-8 rounded-3xl bg-emerald-900 px-6 py-8 text-emerald-50 shadow-lg lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Join the grower circle</h2>
+                  <p className="text-sm text-emerald-100 sm:text-base">
+                    Get exclusive access to propagation tutorials, seasonal care checklists, and curated drops from our most loved sellers.
+                  </p>
+                  <form className="space-y-4" onSubmit={handleNewsletterSubmit}>
+                    <div className="space-y-2">
+                      <Label htmlFor="newsletter-email" className="text-emerald-50">
+                        Email address
+                      </Label>
+                      <Input
+                        id="newsletter-email"
+                        type="email"
+                        placeholder="you@plantmail.com"
+                        value={newsletterEmail}
+                        onChange={(event) => setNewsletterEmail(event.target.value)}
+                        className="border-emerald-500/70 bg-emerald-950/30 text-emerald-50 placeholder:text-emerald-200"
+                        aria-describedby="newsletter-description"
+                        required
+                      />
+                      <p id="newsletter-description" className="text-xs text-emerald-200">
+                        We send one thoughtfully curated email a week. Unsubscribe anytime.
+                      </p>
+                    </div>
+                    <Button type="submit" size="lg" className="w-full bg-emerald-500 text-emerald-950 hover:bg-emerald-400" disabled={isSubmittingNewsletter}>
+                      {isSubmittingNewsletter ? 'Joining...' : 'Join the Newsletter'}
+                    </Button>
+                  </form>
+                </div>
+                <div className="grid content-between gap-6 rounded-2xl bg-emerald-950/40 p-6">
+                  <div className="flex items-start gap-3">
+                    <Quote className="mt-1 h-7 w-7 text-emerald-300" aria-hidden="true" />
+                    <p className="text-sm text-emerald-100">
+                      "GreenThumr has transformed how I discover rare specimens. The newsletters are packed with seasonal advice that keeps my collection lush and healthy."
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src="https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=120&q=80"
+                      alt="Portrait of Maya, a joyful plant stylist"
+                      className="h-12 w-12 rounded-full object-cover"
+                      loading="lazy"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-white">Maya Chen</p>
+                      <p className="text-xs text-emerald-200">Plant stylist & long-time GreenThumr seller</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="mb-12 space-y-6 rounded-3xl border border-emerald-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm">
+                <header className="space-y-3 text-center">
+                  <h2 className="text-2xl font-bold text-emerald-950">What our growers are saying</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Hear how plant enthusiasts are thriving with GreenThumr—from balcony gardens to greenhouse sanctuaries.
+                  </p>
+                </header>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    {
+                      quote:
+                        'I listed my first batch of philodendron cuttings and sold out in a weekend. The listing tools made it effortless to share my propagation notes.',
+                      author: 'Jonas Rivera',
+                      role: 'Tropical plant hobbyist',
+                      image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=120&q=80',
+                    },
+                    {
+                      quote:
+                        'Shipping supplies arrive sustainably sourced, and the marketplace community helped me master heat packs for winter deliveries.',
+                      author: 'Priya Natarajan',
+                      role: 'Cold-climate cactus grower',
+                      image: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=120&q=80',
+                    },
+                    {
+                      quote:
+                        'The category filters make it easy to recommend pet-safe greenery to my clients. It is my go-to hub for sourcing healthy plants.',
+                      author: 'Elena Brooks',
+                      role: 'Interior plant designer',
+                      image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=120&q=80',
+                    },
+                  ].map((testimonial) => (
+                    <figure key={testimonial.author} className="flex h-full flex-col justify-between rounded-2xl bg-white p-5 shadow-md">
+                      <blockquote className="text-sm text-muted-foreground">“{testimonial.quote}”</blockquote>
+                      <figcaption className="mt-5 flex items-center gap-3">
+                        <img
+                          src={testimonial.image}
+                          alt={`Portrait of ${testimonial.author}`}
+                          className="h-10 w-10 rounded-full object-cover"
+                          loading="lazy"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-900">{testimonial.author}</p>
+                          <p className="text-xs text-muted-foreground">{testimonial.role}</p>
+                        </div>
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              </section>
+
               {/* Controls */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
@@ -474,6 +730,7 @@ const App = () => {
               {/* Plants Grid */}
               {filteredPlants.length > 0 ? (
                 <div
+                  id="marketplace-grid"
                   className={
                     viewMode === 'grid'
                       ? 'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
