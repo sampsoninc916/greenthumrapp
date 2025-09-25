@@ -142,6 +142,11 @@ const REQUIRED_API_ENDPOINT_KEYS = [
   'ADMIN_LISTINGS',
   'ADMIN_DISPUTES',
   'ADMIN_AUDIT',
+  'EMAIL_SUBSCRIBE',
+  'EMAIL_UNSUBSCRIBE',
+  'EMAIL_LIFECYCLE',
+  'EMAIL_TEMPLATES_SYNC',
+  'EMAIL_CONSENT',
 ] as const satisfies Array<keyof typeof API_ENDPOINTS>;
 
 const API_ENV_KEY_MAP: Record<(typeof REQUIRED_API_ENDPOINT_KEYS)[number], string> = {
@@ -164,6 +169,11 @@ const API_ENV_KEY_MAP: Record<(typeof REQUIRED_API_ENDPOINT_KEYS)[number], strin
   ADMIN_LISTINGS: 'VITE_API_ADMIN_LISTINGS',
   ADMIN_DISPUTES: 'VITE_API_ADMIN_DISPUTES',
   ADMIN_AUDIT: 'VITE_API_ADMIN_AUDIT',
+  EMAIL_SUBSCRIBE: 'VITE_API_EMAIL_SUBSCRIBE',
+  EMAIL_UNSUBSCRIBE: 'VITE_API_EMAIL_UNSUBSCRIBE',
+  EMAIL_LIFECYCLE: 'VITE_API_EMAIL_LIFECYCLE',
+  EMAIL_TEMPLATES_SYNC: 'VITE_API_EMAIL_TEMPLATES_SYNC',
+  EMAIL_CONSENT: 'VITE_API_EMAIL_CONSENT',
 };
 
 const validateRequiredConfig = () => {
@@ -195,7 +205,9 @@ const validateRequiredConfig = () => {
   });
 
   if (missingEndpoints.length > 0) {
-    const envKeys = missingEndpoints.map((key) => API_ENV_KEY_MAP[key]);
+    const envKeys = missingEndpoints
+      .filter((key): key is keyof typeof API_ENV_KEY_MAP => key in API_ENV_KEY_MAP)
+      .map((key) => API_ENV_KEY_MAP[key]);
     const message = `Missing required API endpoints: ${envKeys.join(', ')}`;
     telemetryService.captureException(new Error(message), {
       message,
