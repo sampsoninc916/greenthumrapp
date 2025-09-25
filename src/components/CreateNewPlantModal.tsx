@@ -12,6 +12,8 @@ import { Textarea } from './ui/textarea';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
+import { uploadsService } from '../services/uploads';
+import type { PresignedUploadTarget } from '../services/uploads';
 import { API_ENDPOINTS } from '../config/amplify';
 import type { DeliveryMethod, LivePlantWarranty } from '../interfaces/Plant';
 import type { Plant } from '../interfaces/Plant';
@@ -53,6 +55,11 @@ interface PlantImageFile {
   id: string;
   file: File;
   previewUrl: string;
+}
+
+interface UploadProgressEntry {
+  uploadedBytes: number;
+  totalBytes: number;
 }
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -127,24 +134,6 @@ interface CreateNewPlantModalProps {
   onListingCreated?: (plant: Plant) => void;
 }
 
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        const base64 = reader.result.split(',')[1];
-        if (base64) {
-          resolve(base64);
-          return;
-        }
-      }
-      reject(new Error('Failed to read file.'));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file.'));
-    reader.readAsDataURL(file);
-  });
-};
-
 const createImageId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -183,6 +172,8 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
   const [fieldErrors, setFieldErrors] = useState<FieldErrorState>({});
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgressEntry>>({});
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -213,6 +204,29 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
     [locationStateCode, deliveryMethods],
   );
 
+  const overallUploadPercent = useMemo(() => {
+    const entries = Object.values(uploadProgress);
+    if (entries.length === 0) {
+      return 0;
+    }
+    const totals = entries.reduce(
+      (acc, entry) => {
+        const uploaded = Math.min(entry.uploadedBytes, entry.totalBytes);
+        return {
+          uploaded: acc.uploaded + uploaded,
+          total: acc.total + entry.totalBytes,
+        };
+      },
+      { uploaded: 0, total: 0 },
+    );
+
+    if (totals.total === 0) {
+      return 0;
+    }
+
+    return Math.round((totals.uploaded / totals.total) * 100);
+  }, [uploadProgress]);
+
   const clearFieldError = useCallback((field: FieldName) => {
     setFieldErrors((prev) => {
       if (!(field in prev)) {
@@ -233,7 +247,33 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
     });
   }, []);
 
+  const resetUploadState = useCallback(() => {
+    setUploadProgress({});
+    setUploadStatus(null);
+  }, []);
+
+  const updateUploadProgress = useCallback((id: string, uploaded: number, total: number) => {
+    setUploadProgress((prev) => {
+      const nextEntry: UploadProgressEntry = {
+        uploadedBytes: Math.min(uploaded, total),
+        totalBytes: total,
+      };
+
+      const existing = prev[id];
+      if (
+        existing &&
+        existing.uploadedBytes === nextEntry.uploadedBytes &&
+        existing.totalBytes === nextEntry.totalBytes
+      ) {
+        return prev;
+      }
+
+      return { ...prev, [id]: nextEntry };
+    });
+  }, []);
+
   const resetForm = useCallback(() => {
+    resetUploadState();
     setImages((current) => {
       current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
       return [];
@@ -271,7 +311,7 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
     setSubmissionError(null);
     setIsSubmitting(false);
     setCurrentStep(0);
-  }, []);
+  }, [resetUploadState]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -841,102 +881,248 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
     setIsSubmitting(true);
     setSubmissionError(null);
 
+    const imagesToUpload = [...images];
+
+    setUploadStatus('Preparing uploads…');
+    setUploadProgress(
+      imagesToUpload.reduce<Record<string, UploadProgressEntry>>((acc, image) => {
+        acc[image.id] = { uploadedBytes: 0, totalBytes: image.file.size };
+        return acc;
+      }, {}),
+    );
+
     try {
-      const base64files = await Promise.all(
-        images.map(async (image) => {
-          const fileBase64 = await fileToBase64(image.file);
-          return {
+      const cleanupKeys = new Set<string>();
+
+      try {
+        const uploadedMedia: Array<{ key: string; fileName: string; contentType: string }> = [];
+
+        if (imagesToUpload.length > 0) {
+          const presignPayload = imagesToUpload.map((image) => ({
+            clientUploadId: image.id,
             fileName: image.file.name,
-            fileContentType: image.file.type || 'application/octet-stream',
-            fileBase64,
-          };
-        }),
-      );
+            contentType: image.file.type || 'application/octet-stream',
+            contentLength: image.file.size,
+          }));
 
-      const plantData = {
-        name: plantName.trim(),
-        price: normalizedPrice,
-        location: location.trim(),
-        category: category.trim(),
-        species: trimmedSpecies,
-        cultivar: trimmedCultivar || undefined,
-        usdaZone: normalizedUsdaZone,
-        lightPreference: trimmedLightPreference,
-        soilPreference: trimmedSoilPreference,
-        condition: trimmedCondition,
-        description: trimmedDescription,
-        careInstructions: trimmedCareInstructions,
-        potSize: potSize.trim(),
-        height: height.trim(),
-        deliveryMethods,
-        availableZipRanges: ranges,
-        packagingNotes: normalizedPackagingNotes || undefined,
-        livePlantWarranty: normalizedWarranty,
-        compliance: complianceData,
-      };
+          const presignedUploads = await uploadsService.createPresignedUploads(presignPayload);
+          presignedUploads.forEach((target) => cleanupKeys.add(target.key));
 
-      const bodyJSON = {
-        plant: plantData,
-        files: base64files,
-        role: role ?? undefined,
-      };
+          const uploadTargetMap = new Map<string, PresignedUploadTarget>(
+            presignedUploads.map((target) => [target.clientUploadId, target]),
+          );
 
-      const token = await authService.getToken();
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      const res = await authService.authenticatedFetch(API_ENDPOINTS.PLANTS_WRITE, {
-        method: 'POST',
-        body: JSON.stringify(bodyJSON),
-        requiresAuth: true,
-      });
-
-      if (!res.ok) {
-        let message = `Failed to create listing: ${res.status}`;
-        try {
-          const errorBody = await res.json();
-          if (errorBody && typeof (errorBody as { message?: string }).message === 'string') {
-            message = (errorBody as { message: string }).message;
+          if (uploadTargetMap.size !== imagesToUpload.length) {
+            throw new Error('Upload endpoint did not return URLs for every photo.');
           }
-        } catch (error) {
-          console.warn('Unable to parse error response', error);
+
+          const performUploadAttempt = async (image: PlantImageFile, target: PresignedUploadTarget) => {
+            const headers = new Headers(target.headers ?? {});
+            if (!headers.has('Content-Type')) {
+              headers.set('Content-Type', image.file.type || 'application/octet-stream');
+            }
+
+            const totalBytes = image.file.size;
+            updateUploadProgress(image.id, 0, totalBytes);
+
+            const supportsStreaming =
+              typeof image.file.stream === 'function' && typeof ReadableStream !== 'undefined';
+
+            if (supportsStreaming) {
+              let uploadedBytes = 0;
+              const stream = image.file.stream();
+              const progressStream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                  const reader = stream.getReader();
+
+                  const push = (): void => {
+                    reader
+                      .read()
+                      .then(({ done, value }) => {
+                        if (done) {
+                          controller.close();
+                          return;
+                        }
+                        if (value) {
+                          uploadedBytes += value.byteLength;
+                          updateUploadProgress(image.id, uploadedBytes, totalBytes);
+                          controller.enqueue(value);
+                        } else {
+                          updateUploadProgress(image.id, uploadedBytes, totalBytes);
+                        }
+                        push();
+                      })
+                      .catch((streamError) => {
+                        controller.error(streamError);
+                      });
+                  };
+
+                  push();
+                },
+              });
+
+              const response = await fetch(target.uploadUrl, {
+                method: 'PUT',
+                headers,
+                body: progressStream,
+              });
+
+              if (!response.ok) {
+                throw new Error(`Upload failed with status ${response.status}.`);
+              }
+            } else {
+              const response = await fetch(target.uploadUrl, {
+                method: 'PUT',
+                headers,
+                body: image.file,
+              });
+
+              if (!response.ok) {
+                throw new Error(`Upload failed with status ${response.status}.`);
+              }
+            }
+
+            updateUploadProgress(image.id, totalBytes, totalBytes);
+          };
+
+          const uploadWithRetries = async (
+            image: PlantImageFile,
+            target: PresignedUploadTarget,
+          ): Promise<void> => {
+            const maxAttempts = 3;
+            let attempt = 0;
+
+            while (attempt < maxAttempts) {
+              try {
+                await performUploadAttempt(image, target);
+                return;
+              } catch (uploadError) {
+                attempt += 1;
+                if (attempt >= maxAttempts) {
+                  throw uploadError instanceof Error
+                    ? uploadError
+                    : new Error('An unexpected error occurred while uploading a photo.');
+                }
+
+                const backoffMs = 500 * attempt;
+                console.warn('Retrying upload after failure', {
+                  fileName: image.file.name,
+                  attempt,
+                  maxAttempts,
+                });
+                await new Promise((resolve) => setTimeout(resolve, backoffMs));
+              }
+            }
+          };
+
+          setUploadStatus('Uploading photos…');
+
+          for (const image of imagesToUpload) {
+            const target = uploadTargetMap.get(image.id);
+            if (!target) {
+              throw new Error(`Missing upload target for ${image.file.name}.`);
+            }
+
+            await uploadWithRetries(image, target);
+            uploadedMedia.push({
+              key: target.key,
+              fileName: image.file.name,
+              contentType: image.file.type || 'application/octet-stream',
+            });
+          }
         }
-        throw new Error(message);
-      }
 
-      const responseBody = await res.json();
-      const rawPlant =
-        responseBody && typeof responseBody === 'object' && 'plant' in responseBody
-          ? (responseBody as { plant: unknown }).plant
-          : responseBody;
-      let createdPlant: Plant | null = null;
-      // Use type guard to ensure rawPlant is PlantResponseDto before normalizing
-      // Import isPlantResponseDto if not already imported
-      // import { isPlantResponseDto } from '../interfaces/Plant';
-      if (rawPlant && typeof rawPlant === 'object' && isPlantResponseDto(rawPlant)) {
-        const normalized = normalizePlantRecord(rawPlant);
-        if (normalized && typeof normalized.id === 'string') {
-          createdPlant = normalized;
+        setUploadStatus('Finalizing listing…');
+
+        const plantData = {
+          name: plantName.trim(),
+          price: normalizedPrice,
+          location: location.trim(),
+          category: category.trim(),
+          species: trimmedSpecies,
+          cultivar: trimmedCultivar || undefined,
+          usdaZone: normalizedUsdaZone,
+          lightPreference: trimmedLightPreference,
+          soilPreference: trimmedSoilPreference,
+          condition: trimmedCondition,
+          description: trimmedDescription,
+          careInstructions: trimmedCareInstructions,
+          potSize: potSize.trim(),
+          height: height.trim(),
+          deliveryMethods,
+          availableZipRanges: ranges,
+          packagingNotes: normalizedPackagingNotes || undefined,
+          livePlantWarranty: normalizedWarranty,
+          compliance: complianceData,
+        };
+
+        const bodyJSON = {
+          plant: plantData,
+          media: uploadedMedia,
+          role: role ?? undefined,
+        };
+
+        const token = await authService.getToken();
+        if (!token) {
+          throw new Error('Authentication required');
         }
-      }
 
-      if (createdPlant) {
-        console.log('Plant created:', createdPlant);
-        onListingCreated?.(createdPlant);
-      } else {
-        console.warn('Plant created but response payload could not be normalized.');
-      }
+        const res = await authService.authenticatedFetch(API_ENDPOINTS.PLANTS_WRITE, {
+          method: 'POST',
+          body: JSON.stringify(bodyJSON),
+          requiresAuth: true,
+        });
 
-      toast.success('Your plant listing is live!');
-      resetForm();
-      onClose();
+        if (!res.ok) {
+          let message = `Failed to create listing: ${res.status}`;
+          try {
+            const errorBody = await res.json();
+            if (errorBody && typeof (errorBody as { message?: string }).message === 'string') {
+              message = (errorBody as { message: string }).message;
+            }
+          } catch (parseError) {
+            console.warn('Unable to parse error response', parseError);
+          }
+          throw new Error(message);
+        }
+
+        const responseBody = res.data ?? (await res.json());
+        const rawPlant =
+          responseBody && typeof responseBody === 'object' && 'plant' in responseBody
+            ? (responseBody as { plant: unknown }).plant
+            : responseBody;
+        let createdPlant: Plant | null = null;
+        if (rawPlant && typeof rawPlant === 'object' && isPlantResponseDto(rawPlant)) {
+          const normalized = normalizePlantRecord(rawPlant);
+          if (normalized && typeof normalized.id === 'string') {
+            createdPlant = normalized;
+          }
+        }
+
+        if (createdPlant) {
+          console.log('Plant created:', createdPlant);
+          onListingCreated?.(createdPlant);
+        } else {
+          console.warn('Plant created but response payload could not be normalized.');
+        }
+
+        toast.success('Your plant listing is live!');
+        resetForm();
+        onClose();
+        cleanupKeys.clear();
+      } catch (innerError) {
+        if (cleanupKeys.size > 0) {
+          await uploadsService.cleanupUploads(Array.from(cleanupKeys));
+        }
+        throw innerError;
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create listing';
       setSubmissionError(message);
       toast.error(message);
       console.error('Error creating listing:', error);
     } finally {
+      resetUploadState();
       setIsSubmitting(false);
     }
   };
@@ -1625,7 +1811,19 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
             )}
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-              <p className="text-sm text-muted-foreground">Step {currentStep + 1} of {STEPS.length}</p>
+              <div className="flex flex-col gap-1">
+                <p className="text-sm text-muted-foreground">Step {currentStep + 1} of {STEPS.length}</p>
+                {isSubmitting && uploadStatus && (
+                  <p className="text-xs text-muted-foreground">
+                    {uploadStatus}
+                    {overallUploadPercent > 0 &&
+                    overallUploadPercent <= 100 &&
+                    uploadStatus !== 'Finalizing listing…'
+                      ? ` ${overallUploadPercent}%`
+                      : ''}
+                  </p>
+                )}
+              </div>
               <div className="flex flex-wrap gap-3">
                 {currentStep > 0 && (
                   <Button type="button" variant="outline" onClick={handlePreviousStep}>
