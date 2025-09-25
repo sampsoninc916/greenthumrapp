@@ -118,6 +118,21 @@ export function PlantDetailModal({
     setTouchedReviewFields({ rating: false, comment: false });
   }, [plant]);
 
+  useEffect(() => {
+    if (!isOpen || !plant) {
+      return;
+    }
+
+    analyticsService.trackListingViewed({
+      plantId: plant.id,
+      plantName: plant.name,
+      price: plant.price,
+      category: plant.category,
+      sellerId: plant.sellerId,
+      location: plant.location,
+    });
+  }, [isOpen, plant]);
+
   // Reset all states when modal closes
   const handleClose = () => {
     setCurrentImageIndex(0);
@@ -209,6 +224,19 @@ export function PlantDetailModal({
   if (!currentPlant) return null;
 
   const alreadyInCart = isInCart(currentPlant.id);
+  const handleAddToCart = () => {
+    analyticsService.trackCartItemAdded({
+      plantId: currentPlant.id,
+      plantName: currentPlant.name,
+      price: currentPlant.price,
+      sellerId: currentPlant.sellerId,
+      category: currentPlant.category,
+      location: currentPlant.location,
+      quantity: 1,
+      actionContext: alreadyInCart ? 'increment' : 'initial_add',
+    });
+    addItem(currentPlant);
+  };
   const deliveryMethods = Array.isArray(currentPlant.deliveryMethods)
     ? currentPlant.deliveryMethods
     : [];
@@ -1108,7 +1136,7 @@ export function PlantDetailModal({
       <div className="space-y-4">
         <Button
           className="w-full bg-green-600 py-3 text-base hover:bg-green-700"
-          onClick={() => currentPlant && addItem(currentPlant)}
+          onClick={handleAddToCart}
         >
           <ShoppingCart className="mr-2 h-5 w-5" />
           {alreadyInCart ? 'Add another to cart' : 'Add to cart'}

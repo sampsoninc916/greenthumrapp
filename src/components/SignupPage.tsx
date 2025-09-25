@@ -11,6 +11,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { API_ENDPOINTS, SECURITY_CONFIG } from "../config/amplify";
 import { authService } from "../services/auth";
+import { analyticsService } from "../services/analytics";
 
 export function SignupPage() {
   const [name, setName] = useState("");
@@ -32,6 +33,15 @@ export function SignupPage() {
   const [marketingSmsOptIn, setMarketingSmsOptIn] = useState(false);
   const navigate = useNavigate();
   const { signup, confirmSignup, login, isAuthenticated } = useAuth();
+
+  const buildSignupPayload = (stage?: string) => ({
+    username: userName || undefined,
+    email: email || undefined,
+    role: selectedRole || undefined,
+    marketingEmailOptIn,
+    marketingSmsOptIn,
+    stage,
+  });
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -96,12 +106,22 @@ export function SignupPage() {
 
     setIsLoading(true);
     setError('');
+    analyticsService.trackSignupStarted(buildSignupPayload('signup'));
 
     try {
       await signup(userName, password, email, name, selectedRole as "buyer" | "seller");
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign up. Please try again.');
+      analyticsService.trackSignupSucceeded({
+        ...buildSignupPayload('signup'),
+        method: 'email_password',
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to sign up. Please try again.';
+      setError(message);
+      analyticsService.trackSignupFailed({
+        ...buildSignupPayload('signup'),
+        error: message,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -118,7 +138,7 @@ export function SignupPage() {
 
     try {
       await confirmSignup(userName, code);
-      
+
       // Create user profile in backend with authentication
       const token = await authService.getToken();
 
@@ -142,14 +162,21 @@ export function SignupPage() {
       
       // Auto-login after successful confirmation
       await login(userName, password);
-      
+
       setConfirm(true);
       setSuccess(false);
-      
+
+      analyticsService.trackSignupConfirmed(buildSignupPayload('confirm'));
+
       // Navigate to home page after successful signup and login
       setTimeout(() => navigate('/'), 1500);
-    } catch (err: any) {
-      setError(err.message || 'Failed to confirm signup. Please try again.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to confirm signup. Please try again.';
+      setError(message);
+      analyticsService.trackSignupFailed({
+        ...buildSignupPayload('confirm'),
+        error: message,
+      });
     } finally {
       setIsLoading(false);
     }

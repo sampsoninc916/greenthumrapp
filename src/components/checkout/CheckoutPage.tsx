@@ -5,6 +5,7 @@ import { useCart } from '../../contexts/CartContext';
 import type { CheckoutAddress } from '../../interfaces/Checkout';
 import { formatCurrency } from '../../utils/currency';
 import { processPayment } from '../../services/payments';
+import { analyticsService } from '../../services/analytics';
 import { telemetryService } from '../../services/telemetry';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -77,6 +78,18 @@ export const CheckoutPage = () => {
 
     setIsProcessing(true);
     try {
+      const checkoutEventContext = {
+        total: totals.total,
+        itemCount: totals.itemCount,
+        deliveryMethod: selectedDeliveryOption?.id ?? deliveryOptions[0]?.id ?? null,
+        paymentMethod: 'card',
+      };
+
+      analyticsService.trackCheckoutStarted({
+        ...checkoutEventContext,
+        stage: 'payment_attempt',
+      });
+
       const paymentResult = await processPayment({
         amount: totals.total,
         currency: 'USD',
@@ -98,9 +111,21 @@ export const CheckoutPage = () => {
       });
 
       if (!paymentResult.success) {
-        setErrorMessage(paymentResult.errorMessage ?? 'Something went wrong while processing the payment.');
+        const message = paymentResult.errorMessage ?? 'Something went wrong while processing the payment.';
+        setErrorMessage(message);
+        analyticsService.trackCheckoutFailed({
+          ...checkoutEventContext,
+          stage: 'payment_failed',
+          error: message,
+        });
         return;
       }
+
+      analyticsService.trackCheckoutCompleted({
+        ...checkoutEventContext,
+        stage: 'payment_succeeded',
+        transactionId: paymentResult.transactionId,
+      });
 
       navigate('/checkout/confirmation', {
         replace: true,
@@ -114,6 +139,16 @@ export const CheckoutPage = () => {
         }
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown checkout error';
+      analyticsService.trackCheckoutFailed({
+        total: totals.total,
+        itemCount: totals.itemCount,
+        deliveryMethod: selectedDeliveryOption?.id ?? deliveryOptions[0]?.id ?? null,
+        paymentMethod: 'card',
+        stage: 'exception',
+        error: message,
+      });
+
       telemetryService.captureException(error, {
         message: 'Checkout submission failed',
         tags: {
