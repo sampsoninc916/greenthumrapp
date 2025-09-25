@@ -1338,7 +1338,7 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
           operation: 'create',
         },
         extra: {
-          plantName: formState.plantName,
+          plantName: plantName,
           imageCount: images.length,
         },
       });

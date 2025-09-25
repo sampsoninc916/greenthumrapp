@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/react';
+import * as Sentry from '@sentry/browser';
 import type { Event, EventHint, SeverityLevel } from '@sentry/types';
 
 type TelemetryTags = Record<string, string>;
@@ -252,15 +252,15 @@ export const initializeTelemetry = () => {
     release: telemetryConfig.release,
     integrations: [Sentry.browserTracingIntegration()],
     tracesSampleRate: 0.1,
-    beforeSend(event: Event, hint?: EventHint) {
-      const sanitizedEvent = sanitizeEvent(event);
+    beforeSend(event, hint) {
+      const sanitizedEvent = sanitizeEvent(event as Event);
       if (hint?.originalException && hint.originalException instanceof Error) {
         const error = hint.originalException;
         if (PII_KEY_PATTERN.test(error.message)) {
           error.message = '[REDACTED]';
         }
       }
-      return sanitizedEvent;
+      return sanitizedEvent as typeof event;
     },
   });
 
@@ -279,7 +279,7 @@ const normalizeError = (error: unknown, fallbackMessage?: string): Error => {
     return new Error(message, { cause: error });
   } catch {
     const normalized = new Error(message);
-    (normalized as Record<string, unknown>).cause = error;
+    (normalized as unknown as Record<string, unknown>).cause = error;
     return normalized;
   }
 };
