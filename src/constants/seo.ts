@@ -13,10 +13,10 @@ export interface SeoMetadata {
 export const SEO_DEFAULTS: SeoMetadata = {
   title: 'Thumr | Plant Marketplace',
   description:
-    'Thumr is the community-driven marketplace where plant collectors discover, trade, and care for rare houseplants together.',
+    'Thumr is the community-driven marketplace where plant collectors discover, trade, and care for houseplants together.',
   keywords: [
     'plant marketplace',
-    'buy rare plants',
+    'buy plants',
     'sell houseplants',
     'plant swap',
     'plant care community',
