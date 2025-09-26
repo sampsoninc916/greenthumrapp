@@ -282,6 +282,8 @@ const App = () => {
 
   const isDetailRoute = Boolean(plantId);
   const shouldShowListing = !isDetailRoute || !isMobile;
+  const showLandingContent = !isAuthenticated;
+  const showMarketplaceContent = isAuthenticated;
 
   const canonicalBaseUrl = useMemo(() => {
     return SEO_DEFAULTS.url.replace(/\/$/, '');
@@ -575,15 +577,19 @@ const App = () => {
             onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
           />
           <div className="flex">
-            <Sidebar
-              isOpen={isSidebarOpen}
-              onClose={() => setIsSidebarOpen(false)}
-              filters={filters}
-              onFiltersChange={setFilters}
-            />
+            {showMarketplaceContent && (
+              <Sidebar
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
+                filters={filters}
+                onFiltersChange={setFilters}
+              />
+            )}
 
             <main className="flex-1 px-4 pb-32 pt-5 sm:px-6 sm:pb-10 sm:pt-6">
-              <section className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-500 px-6 py-10 text-white shadow-lg sm:px-10">
+              {showLandingContent && (
+                <>
+                  <section className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-500 px-6 py-10 text-white shadow-lg sm:px-10">
                 <div className="absolute inset-y-0 right-0 hidden max-w-xs overflow-hidden sm:block">
                   <div className="h-full w-full bg-gradient-to-t from-emerald-700/30 to-transparent" />
                 </div>
@@ -842,56 +848,61 @@ const App = () => {
                 </div>
               </section>
 
-              {/* Controls */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                    className="md:hidden"
-                  >
-                    <SlidersHorizontal className="h-4 w-4 mr-2" />
-                    Filters
-                  </Button>
+                </>
+              )}
 
-                  <div className="text-sm text-muted-foreground">
-                    {isInitialLoading && filteredPlants.length === 0 ? (
-                      'Loading plants...'
-                    ) : (
-                      <>
-                        {filteredPlants.length} plants loaded
-                        {totalAvailable !== null && totalAvailable > filteredPlants.length && (
-                          <span className="ml-1">of {totalAvailable}+</span>
+              {showMarketplaceContent && (
+                <>
+                  {/* Controls */}
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="md:hidden"
+                      >
+                        <SlidersHorizontal className="h-4 w-4 mr-2" />
+                        Filters
+                      </Button>
+
+                      <div className="text-sm text-muted-foreground">
+                        {isInitialLoading && filteredPlants.length === 0 ? (
+                          'Loading plants...'
+                        ) : (
+                          <>
+                            {filteredPlants.length} plants loaded
+                            {totalAvailable !== null && totalAvailable > filteredPlants.length && (
+                              <span className="ml-1">of {totalAvailable}+</span>
+                            )}
+                            {searchQuery && (
+                              <span> for "{searchQuery}"</span>
+                            )}
+                          </>
                         )}
-                        {searchQuery && (
-                          <span> for "{searchQuery}"</span>
-                        )}
-                      </>
-                    )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('grid')}
+                      >
+                        <Grid3X3 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant={viewMode === 'list' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('list')}
+                      >
+                        <List className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('grid')}
-                  >
-                    <Grid3X3 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'list' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Plants Grid */}
-              {filteredPlants.length > 0 ? (
+                  {/* Plants Grid */}
+                  {filteredPlants.length > 0 ? (
                 <div
                   id="marketplace-grid"
                   className={
@@ -968,6 +979,8 @@ const App = () => {
                 <div className="py-6 text-center text-sm text-muted-foreground">
                   You’ve reached the end of the plant listings.
                 </div>
+                  )}
+                </>
               )}
             </main>
           </div>
@@ -1022,7 +1035,7 @@ const App = () => {
         }}
       />
 
-      <MobileActionBar onAddListing={handleAddListing} />
+      {showMarketplaceContent && <MobileActionBar onAddListing={handleAddListing} />}
     </div>
   );
 }
