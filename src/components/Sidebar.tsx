@@ -87,10 +87,10 @@ export function Sidebar({ isOpen, onClose, filters, onFiltersChange }: SidebarPr
       
       {/* Sidebar */}
       <aside className={`
-        fixed top-16 left-0 h-[calc(100vh-4rem)] w-80 bg-white border-r border-green-100 z-50 overflow-y-auto
+        fixed top-[calc(4rem+1px)] left-0 h-[calc(100vh-4rem-1px)] w-80 bg-white border-r border-green-100 z-50 overflow-y-auto
         transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        md:relative md:top-0 md:translate-x-0 md:block
+        md:sticky md:top-[calc(5rem+1px)] md:h-[calc(100vh-5rem-1px)] md:shrink-0 md:translate-x-0 md:overflow-y-auto md:block
       `}>
         <div className="p-6 space-y-6">
           {/* Header */}
