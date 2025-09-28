@@ -626,7 +626,7 @@ const App = () => {
                       <Button size="lg" onClick={handleAddListing} className="bg-white text-emerald-700 hover:bg-emerald-50">
                         Become a Seller
                       </Button>
-                      <Button size="lg" variant="outline" onClick={handleExploreCategories} className="border-white text-white hover:bg-white/10">
+                      <Button size="lg" variant="outline" onClick={handleExploreCategories} className="border-white text-emerald-700 hover:bg-white/10">
                         Explore Categories
                       </Button>
                       <Button
