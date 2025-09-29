@@ -368,7 +368,7 @@ export const CheckoutPage = () => {
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 {items.map((item) => (
-                  <div key={item.plant.id} className="flex items-start justify-between gap-3">
+                  <div key={item.plant.plantId} className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-green-900">{item.plant.name}</p>
                       <p className="text-xs text-muted-foreground">

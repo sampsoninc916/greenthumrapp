@@ -319,8 +319,8 @@ export function ProfilePage() {
 
         const allPlants: Plant[] = validPlantDtos.map((dto) => normalizePlantRecord(dto));
 
-        const userPlants = allPlants.filter((plant) => parsed.plantListingIds.includes(plant.id));
-        const savedPlants = allPlants.filter((plant) => parsed.savedListingIds.includes(plant.id));
+        const userPlants = allPlants.filter((plant) => parsed.plantListingIds.includes(plant.plantId));
+        const savedPlants = allPlants.filter((plant) => parsed.savedListingIds.includes(plant.plantId));
 
         if (isCancelled) {
           return;
@@ -525,7 +525,7 @@ export function ProfilePage() {
     return (
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {collection.map((listing: Plant) => (
-          <Card key={listing.id} className="overflow-hidden border border-green-100 shadow-sm">
+          <Card key={listing.plantId} className="overflow-hidden border border-green-100 shadow-sm">
             <PlantCard plant={listing} />
           </Card>
         ))}

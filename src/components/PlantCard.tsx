@@ -26,7 +26,7 @@ export function PlantCard({
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
     setLiked(!liked);
-    onLike?.(plant.id);
+    onLike?.(plant.plantId);
   };
 
   const handleClick = () => {

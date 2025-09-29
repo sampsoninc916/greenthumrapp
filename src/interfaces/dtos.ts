@@ -18,7 +18,7 @@ const isFiniteNumberLike = (value: unknown): boolean => {
 };
 
 export interface PlantResponseDto {
-  id: string;
+  plantId: string;
   name: string;
   price: number | string;
   seller?: string;
@@ -53,7 +53,7 @@ export const isPlantResponseDto = (value: unknown): value is PlantResponseDto =>
     return false;
   }
   const record = value as Record<string, unknown>;
-  if (typeof record.id !== 'string' || record.id.trim().length === 0) {
+  if (typeof record.plantId !== 'string' || record.plantId.trim().length === 0) {
     return false;
   }
   if (typeof record.name !== 'string' || record.name.trim().length === 0) {
