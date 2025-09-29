@@ -80,7 +80,7 @@ export const normalizePlantRecord = (plant: PlantResponseDto): Plant => {
       : undefined;
 
   return {
-    id: plant.id,
+    plantId: plant.plantId,
     name: plant.name,
     price: priceNumber,
     images,

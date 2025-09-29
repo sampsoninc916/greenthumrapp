@@ -145,7 +145,7 @@ const App = () => {
     for (const page of sortedPages) {
       const entries = pageCacheRef.current.get(page) ?? [];
       for (const plant of entries) {
-        uniqueById.set(plant.id, plant);
+        uniqueById.set(plant.plantId, plant);
       }
     }
 
@@ -277,7 +277,7 @@ const App = () => {
     if (!plantId) {
       return null;
     }
-    return plantsData.find((plant) => plant.id === plantId) ?? null;
+    return plantsData.find((plant) => plant.plantId === plantId) ?? null;
   }, [plantsData, plantId]);
 
   const isDetailRoute = Boolean(plantId);
@@ -349,7 +349,7 @@ const App = () => {
       description,
       keywords,
       image: primaryImage,
-      url: `${canonicalBaseUrl}/plants/${selectedPlant.id}`,
+      url: `${canonicalBaseUrl}/plants/${selectedPlant.plantId}`,
       type: 'product' as const,
     };
   }, [selectedPlant, canonicalBaseUrl]);
@@ -405,7 +405,7 @@ const App = () => {
     let foundInCache = false;
 
     pageCacheRef.current.forEach((items, page) => {
-      const index = items.findIndex((plant) => plant.id === updatedPlant.id);
+      const index = items.findIndex((plant) => plant.plantId === updatedPlant.plantId);
       if (index !== -1) {
         const nextItems = [...items];
         nextItems[index] = { ...nextItems[index], ...updatedPlant };
@@ -420,7 +420,7 @@ const App = () => {
     }
 
     setPlantsData((prev) => {
-      const existingIndex = prev.findIndex((plant) => plant.id === updatedPlant.id);
+      const existingIndex = prev.findIndex((plant) => plant.plantId === updatedPlant.plantId);
       if (existingIndex === -1) {
         return [updatedPlant, ...prev];
       }
@@ -458,7 +458,7 @@ const App = () => {
   );
 
   const handleViewDetail = (plant: Plant) => {
-    navigate(`/plants/${plant.id}`);
+    navigate(`/plants/${plant.plantId}`);
   };
 
   const handleCloseDetail = () => {
@@ -913,7 +913,7 @@ const App = () => {
                 >
                   {filteredPlants.map((plant: Plant) => (
                     <PlantCard
-                      key={plant.id}
+                      key={plant.plantId}
                       plant={plant}
                       onPlantUpdate={handlePlantUpdate}
                       onViewDetail={handleViewDetail}

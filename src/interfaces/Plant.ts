@@ -25,7 +25,7 @@ export interface PlantCompliance {
 }
 
 export interface Plant {
-    id: string;
+    plantId: string;
     name: string;
     price: number;
     images: string[];

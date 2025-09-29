@@ -116,7 +116,7 @@ export const CartPage = () => {
                   : item.plant.images;
 
                 return (
-                  <div key={item.plant.id} className="flex flex-col sm:flex-row gap-4">
+                  <div key={item.plant.plantId} className="flex flex-col sm:flex-row gap-4">
                     <div className="w-full sm:w-32 h-32 rounded-lg overflow-hidden bg-green-100">
                       <ImageWithFallback
                         src={firstImage}
@@ -142,11 +142,11 @@ export const CartPage = () => {
                       </div>
 
                       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <Label htmlFor={`quantity-${item.plant.id}`} className="text-sm font-medium">
+                        <Label htmlFor={`quantity-${item.plant.plantId}`} className="text-sm font-medium">
                           Quantity
                         </Label>
                         <Input
-                          id={`quantity-${item.plant.id}`}
+                          id={`quantity-${item.plant.plantId}`}
                           type="number"
                           min={1}
                           className="w-24"
@@ -157,7 +157,7 @@ export const CartPage = () => {
 
                             if (nextQuantity !== item.quantity) {
                               analyticsService.trackCartQuantityUpdated({
-                                plantId: item.plant.id,
+                                plantId: item.plant.plantId,
                                 plantName: item.plant.name,
                                 price: item.plant.price,
                                 sellerId: item.plant.sellerId,
@@ -169,7 +169,7 @@ export const CartPage = () => {
                               });
                             }
 
-                            updateItemQuantity(item.plant.id, nextQuantity);
+                            updateItemQuantity(item.plant.plantId, nextQuantity);
                           }}
                         />
                         <Button
@@ -178,7 +178,7 @@ export const CartPage = () => {
                           className="text-red-600"
                           onClick={() => {
                             analyticsService.trackCartItemRemoved({
-                              plantId: item.plant.id,
+                              plantId: item.plant.plantId,
                               plantName: item.plant.name,
                               price: item.plant.price,
                               sellerId: item.plant.sellerId,
@@ -187,7 +187,7 @@ export const CartPage = () => {
                               quantity: item.quantity,
                               actionContext: 'cart_page',
                             });
-                            removeItem(item.plant.id);
+                            removeItem(item.plant.plantId);
                           }}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />

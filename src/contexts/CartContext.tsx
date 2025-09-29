@@ -107,7 +107,7 @@ export const CartProvider = ({ children }: CartProviderProps) => {
         if (Array.isArray(parsedItems)) {
           setItems(
             parsedItems.filter((item): item is CartItem => {
-              return Boolean(item?.plant?.id) && typeof item?.quantity === 'number';
+              return Boolean(item?.plant?.plantId) && typeof item?.quantity === 'number';
             })
           );
         }
@@ -144,11 +144,11 @@ export const CartProvider = ({ children }: CartProviderProps) => {
 
   const addItem = useCallback((plant: Plant, quantity = 1) => {
     setItems((previousItems) => {
-      const existingItem = previousItems.find((item) => item.plant.id === plant.id);
+      const existingItem = previousItems.find((item) => item.plant.plantId === plant.plantId);
 
       if (existingItem) {
         return previousItems.map((item) =>
-          item.plant.id === plant.id
+          item.plant.plantId === plant.plantId
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
@@ -162,7 +162,7 @@ export const CartProvider = ({ children }: CartProviderProps) => {
     setItems((previousItems) =>
       previousItems
         .map((item) =>
-          item.plant.id === plantId
+          item.plant.plantId === plantId
             ? { ...item, quantity: quantity <= 0 ? 0 : quantity }
             : item
         )
@@ -171,7 +171,7 @@ export const CartProvider = ({ children }: CartProviderProps) => {
   }, []);
 
   const removeItem = useCallback((plantId: string) => {
-    setItems((previousItems) => previousItems.filter((item) => item.plant.id !== plantId));
+    setItems((previousItems) => previousItems.filter((item) => item.plant.plantId !== plantId));
   }, []);
 
   const setDeliveryOption = useCallback((method: DeliveryMethod) => {
@@ -207,7 +207,7 @@ export const CartProvider = ({ children }: CartProviderProps) => {
   }, [items, selectedDeliveryOption]);
 
   const isInCart = useCallback(
-    (plantId: string) => items.some((item) => item.plant.id === plantId),
+    (plantId: string) => items.some((item) => item.plant.plantId === plantId),
     [items]
   );
 

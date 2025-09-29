@@ -1302,7 +1302,7 @@ export function CreateNewPlantModal({ isOpen, onClose, onListingCreated }: Creat
         let createdPlant: Plant | null = null;
         if (rawPlant && typeof rawPlant === 'object' && isPlantResponseDto(rawPlant)) {
           const normalized = normalizePlantRecord(rawPlant);
-          if (normalized && typeof normalized.id === 'string') {
+          if (normalized && typeof normalized.plantId === 'string') {
             createdPlant = normalized;
           }
         }

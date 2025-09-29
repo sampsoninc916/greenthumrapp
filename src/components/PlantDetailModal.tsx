@@ -124,7 +124,7 @@ export function PlantDetailModal({
     }
 
     analyticsService.trackListingViewed({
-      plantId: plant.id,
+      plantId: plant.plantId,
       plantName: plant.name,
       price: plant.price,
       category: plant.category,
@@ -223,10 +223,10 @@ export function PlantDetailModal({
 
   if (!currentPlant) return null;
 
-  const alreadyInCart = isInCart(currentPlant.id);
+  const alreadyInCart = isInCart(currentPlant.plantId);
   const handleAddToCart = () => {
     analyticsService.trackCartItemAdded({
-      plantId: currentPlant.id,
+      plantId: currentPlant.plantId,
       plantName: currentPlant.name,
       price: currentPlant.price,
       sellerId: currentPlant.sellerId,
@@ -420,7 +420,7 @@ export function PlantDetailModal({
       }
 
       navigate(`/messages/${normalizedThread.id}`, {
-        state: { plantId: currentPlant?.id },
+        state: { plantId: currentPlant?.plantId },
       });
     } else {
       setIsConversationOpen(true);
@@ -435,7 +435,7 @@ export function PlantDetailModal({
     if (!isAuthenticated) {
       toast.error('Please sign in to contact the seller.');
       navigate('/login', {
-        state: { from: { pathname: '/messages', plantId: currentPlant.id } },
+        state: { from: { pathname: '/messages', plantId: currentPlant.plantId } },
       });
       return;
     }
@@ -448,7 +448,7 @@ export function PlantDetailModal({
 
     try {
       const thread = await messagesService.startThread({
-        plantId: currentPlant.id,
+        plantId: currentPlant.plantId,
         sellerId: currentPlant.sellerId ?? currentPlant.seller,
       });
 
@@ -557,7 +557,7 @@ export function PlantDetailModal({
     if (!isAuthenticated) {
       toast.error('Please sign in to leave a review.');
       navigate('/login', {
-        state: { from: { pathname: '/', action: 'add-review', plantId: currentPlant.id } },
+        state: { from: { pathname: '/', action: 'add-review', plantId: currentPlant.plantId } },
       });
       return;
     }
@@ -598,7 +598,7 @@ export function PlantDetailModal({
     try {
       const trimmedComment = reviewComment.trim();
       const response = await reviewsService.submitReview({
-        plantId: currentPlant.id,
+        plantId: currentPlant.plantId,
         rating: reviewRating,
         comment: trimmedComment,
       });
@@ -608,7 +608,7 @@ export function PlantDetailModal({
 
       if (nextRating === undefined || nextCount === undefined) {
         try {
-          const summary = await reviewsService.getReviewSummary(currentPlant.id);
+          const summary = await reviewsService.getReviewSummary(currentPlant.plantId);
           nextRating = summary.sellerRating ?? nextRating;
           nextCount = summary.totalReviews ?? nextCount;
         } catch (summaryError) {
@@ -657,7 +657,7 @@ export function PlantDetailModal({
       onPlantUpdate?.(previousPlantState);
       const message = error instanceof Error ? error.message : 'Failed to submit review.';
       analyticsService.track('review_submission_failed', {
-        plantId: currentPlant.id,
+        plantId: currentPlant.plantId,
         error: message,
         rating: reviewRating,
         commentLength: reviewComment.trim().length,
@@ -694,7 +694,7 @@ export function PlantDetailModal({
 
     try {
       const { data } = await apiClient.put<PlantResponseDto | { plant: PlantResponseDto }>(
-        `${API_ENDPOINTS.PLANTS_UPDATE}?plantId=${updatedPlant.id}`,
+        `${API_ENDPOINTS.PLANTS_UPDATE}?plantId=${updatedPlant.plantId}`,
         changedData,
         { requiresAuth: true },
       );
@@ -723,7 +723,7 @@ export function PlantDetailModal({
           operation: 'update',
         },
         extra: {
-          plantId: updatedPlant.id,
+          plantId: updatedPlant.plantId,
           changedFields: Array.from(changedFields),
         },
       });

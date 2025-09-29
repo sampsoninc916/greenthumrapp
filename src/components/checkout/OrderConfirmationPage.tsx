@@ -170,7 +170,7 @@ export const OrderConfirmationPage = () => {
                   );
 
                   return (
-                    <div key={item.plant.id} className="flex items-start justify-between gap-3">
+                    <div key={item.plant.plantId} className="flex items-start justify-between gap-3">
                       <div className="flex-1">
                         <p className="font-medium text-green-900">{item.plant.name}</p>
                         <p className="text-xs text-muted-foreground">
@@ -180,7 +180,7 @@ export const OrderConfirmationPage = () => {
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {complianceHighlights.map((highlight) => (
                               <Badge
-                                key={`${item.plant.id}-${highlight}`}
+                                key={`${item.plant.plantId}-${highlight}`}
                                 variant="outline"
                                 className="border-emerald-200 bg-emerald-50 text-emerald-800"
                               >
