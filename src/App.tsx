@@ -190,7 +190,6 @@ const App = () => {
           total: rawItems.length,
           valid: validPlants.length,
         });
-        toast.error('Some plant listings could not be loaded. Please refresh to try again.');
       }
 
       const normalizedPlants: Plant[] = validPlants.map((item) => normalizePlantRecord(item));
@@ -215,7 +214,7 @@ const App = () => {
         },
       });
       setError(true);
-      toast.error('Unable to load plant listings. Please try again.');
+      console.error('Unable to load plant listings.', err);
     } finally {
       pendingPagesRef.current.delete(page);
       if (page === 1) {

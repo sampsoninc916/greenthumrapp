@@ -42,6 +42,22 @@ export class ApiError extends Error {
   }
 }
 
+const isUserActionableStatus = (status: number): boolean => {
+  if (!Number.isFinite(status)) {
+    return false;
+  }
+
+  if (status === 404) {
+    return false;
+  }
+
+  return status >= 400 && status < 500;
+};
+
+export const isUserActionableApiError = (error: unknown): error is ApiError => {
+  return error instanceof ApiError && isUserActionableStatus(error.status);
+};
+
 export const logApiError = (error: ApiError, suppressToast = false) => {
   telemetryService.captureApiError(error, {
     endpoint: error.endpoint,
@@ -52,7 +68,15 @@ export const logApiError = (error: ApiError, suppressToast = false) => {
     },
   });
 
-  if (!suppressToast) {
+  console.error('[API] Request failed', {
+    endpoint: error.endpoint,
+    status: error.status,
+    operationName: error.operationName,
+    message: error.message,
+    error,
+  });
+
+  if (!suppressToast && isUserActionableStatus(error.status)) {
     toast.error(error.message);
   }
 };
