@@ -7,6 +7,30 @@ Currently, two official plugins are available:
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
 - [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
+## Automated QA testing
+
+End-to-end QA for critical marketplace flows is covered with Vitest. The suite validates data normalization logic for plant listings and the email service orchestration used by the waitlist and lifecycle campaigns.
+
+1. Install dependencies (includes dev dependencies required for testing):
+
+   ```bash
+   npm install
+   ```
+
+2. Run the full automated QA suite:
+
+   ```bash
+   npm test
+   ```
+
+   The command executes all `*.test.ts` files under `src/` and will fail fast if any regression is detected.
+
+3. To execute or debug a single spec file, pass its path to Vitest:
+
+   ```bash
+   npx vitest run src/services/__tests__/email.test.ts
+   ```
+
 ## Deploying to Cloudflare Workers
 
 This branch includes configuration for deploying the built site to a [Cloudflare Worker](https://developers.cloudflare.com/workers/).
