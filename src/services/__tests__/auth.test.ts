@@ -2,6 +2,7 @@
 
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { authService, apiClient } from "../auth";
+import { httpClient } from "../httpClient";
 import { API_ENDPOINTS } from "../../config/amplify";
 
 const originalEndpoints = {
@@ -12,7 +13,6 @@ const originalEndpoints = {
 
 const originalWindow = globalThis.window;
 const originalCustomEvent = globalThis.CustomEvent;
-const originalFetch = globalThis.fetch;
 
 const setMockWindow = () => {
   const mockLocation = {
@@ -46,7 +46,6 @@ beforeEach(() => {
   (API_ENDPOINTS as any).USERS_WRITE = "/api/users";
   (authService as any).userIdCache = null;
   (authService as any).roleCache = null;
-  globalThis.fetch = originalFetch;
 });
 
 afterEach(() => {
@@ -55,12 +54,6 @@ afterEach(() => {
   (API_ENDPOINTS as any).USERS_WRITE = originalEndpoints.USERS_WRITE;
   (authService as any).userIdCache = null;
   (authService as any).roleCache = null;
-
-  if (originalFetch) {
-    globalThis.fetch = originalFetch;
-  } else {
-    delete (globalThis as any).fetch;
-  }
 
   if (originalWindow) {
     (globalThis as any).window = originalWindow;
@@ -79,8 +72,7 @@ afterEach(() => {
 
 describe("AuthService user scoping", () => {
   it("prevents fetching another user's profile", async () => {
-    const fetchSpy = vi.fn();
-    globalThis.fetch = fetchSpy as any;
+    const requestSpy = vi.spyOn(httpClient, "request");
 
     const tokenSpy = vi
       .spyOn(authService as any, "getTokenAndRole")
@@ -93,13 +85,12 @@ describe("AuthService user scoping", () => {
       }),
     ).rejects.toThrow(/mismatch/i);
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(requestSpy).not.toHaveBeenCalled();
     tokenSpy.mockRestore();
   });
 
   it("blocks updates targeting another user's profile", async () => {
-    const fetchSpy = vi.fn();
-    globalThis.fetch = fetchSpy as any;
+    const requestSpy = vi.spyOn(httpClient, "request");
 
     vi.spyOn(authService as any, "getTokenAndRole").mockResolvedValue({
       token: "fake-token",
@@ -108,7 +99,7 @@ describe("AuthService user scoping", () => {
     });
 
     await expect(apiClient.put("/api/users/me?userId=user-456", { description: "nope" }, true)).rejects.toThrow(/mismatch/i);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(requestSpy).not.toHaveBeenCalled();
   });
 
   it("sanitizes sensitive fields from profile responses", async () => {
@@ -119,13 +110,14 @@ describe("AuthService user scoping", () => {
       description: "Bio",
     };
 
-    const fetchSpy = vi.fn().mockResolvedValue(
+    const requestSpy = vi
+      .spyOn(httpClient, "request")
+      .mockResolvedValue(
       new Response(JSON.stringify(responsePayload), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
     );
-    globalThis.fetch = fetchSpy as any;
 
     vi.spyOn(authService as any, "getTokenAndRole").mockResolvedValue({
       token: "fake-token",
@@ -144,6 +136,6 @@ describe("AuthService user scoping", () => {
       description: "Bio",
     });
     expect((data as any)?.email).toBeUndefined();
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy).toHaveBeenCalledTimes(1);
   });
 });
