@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft } from 'lucide-react';
+import { Heart, MapPin, User, MessageCircle, Star, Shield, ArrowLeft } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { StarRating } from "./StarRating";
-import { Arrow } from '@radix-ui/react-context-menu';
+import { createStripeCheckoutSession, isStripeCheckoutConfigured } from '../services/stripeCheckout';
 
 interface Plant {
   id: string;
@@ -27,14 +27,6 @@ interface Plant {
   postedDate: string;
 }
 
-interface Review {
-  id: string;
-  rating: number;
-  comment: string;
-  reviewer: string;
-  date: string;
-}
-
 interface PlantDetailModalProps {
   plant: Plant | null;
   isOpen: boolean;
@@ -44,12 +36,13 @@ interface PlantDetailModalProps {
 export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
-  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+  const isMobileView = window.innerWidth < 768;
   const [isReviewScreenOpen, setIsReviewScreenOpen] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
-  const [reviewFormFields, setReviewFormFields] = useState<Review[]>([]);
   const [showBackAlert, setShowBackAlert] = useState(false);
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
 
   if (!plant) return null;
 
@@ -84,6 +77,26 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
     setShowBackAlert(false);
   };
 
+  const handleStripeCheckout = async () => {
+    setCheckoutError('');
+
+    if (!isStripeCheckoutConfigured) {
+      setCheckoutError('Stripe checkout is not configured. Set REACT_APP_STRIPE_CHECKOUT_ENDPOINT to your secure backend checkout endpoint.');
+      return;
+    }
+
+    setIsCheckoutLoading(true);
+
+    try {
+      const redirectUrl = await createStripeCheckoutSession(plant);
+      window.location.assign(redirectUrl);
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : 'Unable to start Stripe checkout. Please try again.');
+    } finally {
+      setIsCheckoutLoading(false);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       {!isReviewScreenOpen && (
@@ -91,9 +104,9 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
           <div className="space-y-12">
             <DialogHeader className="flex flex-row items-center justify-between p-0">
               <div />
-              <Button 
-                variant="white" 
-                size="sm" 
+              <Button
+                variant="white"
+                size="sm"
                 onClick={onClose}
                 className="h-6 w-8 p-0 hidden"
               >
@@ -111,7 +124,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                     className="w-full h-full object-cover"
                   />
                 </div>
-                
+
                 {plant.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto">
                     {plant.images.map((image, index) => (
@@ -119,8 +132,8 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                         key={index}
                         onClick={() => setCurrentImageIndex(index)}
                         className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 ${
-                          index === currentImageIndex 
-                            ? 'border-green-500' 
+                          index === currentImageIndex
+                            ? 'border-green-500'
                             : 'border-gray-200'
                         }`}
                       >
@@ -147,12 +160,12 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                       onClick={() => setIsLiked(!isLiked)}
                       className="p-2"
                     >
-                      <Heart 
-                        className={`h-5 w-5 ${isLiked ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} 
+                      <Heart
+                        className={`h-5 w-5 ${isLiked ? 'fill-red-500 text-red-500' : 'text-gray-600'}`}
                       />
                     </Button>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <span className="text-2xl font-bold text-green-600">
                       ${plant.price}
@@ -226,6 +239,23 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
 
                 {/* Actions */}
                 <div className="space-y-3">
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={handleStripeCheckout}
+                    disabled={isCheckoutLoading}
+                  >
+                    {isCheckoutLoading ? 'Starting secure checkout…' : 'Buy with Stripe'}
+                  </Button>
+                  {!isStripeCheckoutConfigured && (
+                    <p className="text-xs text-amber-700">
+                      Stripe checkout requires REACT_APP_STRIPE_CHECKOUT_ENDPOINT to be set to a secure backend endpoint.
+                    </p>
+                  )}
+                  {checkoutError && (
+                    <p role="alert" className="text-sm text-red-600">
+                      {checkoutError}
+                    </p>
+                  )}
                   <Button className="w-full bg-green-600 hover:bg-green-700">
                     Contact Seller
                   </Button>
@@ -255,17 +285,17 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
         <DialogContent className={`max-w-4xl h-[${isMobileView ? `100vh` : `83vh`}] overflow-y-auto`}>
           <div className="space-y-12">
             <DialogHeader className="flex flex-row items-center justify-between p-0">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() =>handleReviewBack(reviewComment, reviewRating)}
                 className="h-6 w-8 p-0 -mt-6 -ml-4"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={onClose}
                 className="h-6 w-8 p-0 hidden"
               >
@@ -310,7 +340,7 @@ export function PlantDetailModal({ plant, isOpen, onClose }: PlantDetailModalPro
                     <h1 className="text-2xl font-semibold">Your Rating</h1>
                     <StarRating value={reviewRating} onChange={setReviewRating} />
                   </div>
-                  
+
                   <div className="flex items-center justify-between border border-black rounded-md">
                     <textarea id="message" rows={32} onChange={(e) => setReviewComment(e.target.value)} className="block p-2 w-full text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Write your review here"></textarea>
                   </div>

@@ -33,6 +33,30 @@ When watch mode is active, use the on-screen prompts (`a`, `f`, `q`, etc.) to co
 > the existing modal markup. These warnings are expected with the current implementation and do not
 > indicate a failing test.
 
+
+## Stripe Checkout configuration
+
+Stripe payments are initiated from the plant detail modal through a secure backend checkout endpoint.
+The React app does **not** store Stripe secret keys and only needs the backend URL below:
+
+```bash
+REACT_APP_STRIPE_CHECKOUT_ENDPOINT=https://your-api.example.com/api/stripe/create-checkout-session
+```
+
+The backend endpoint should create a Stripe Checkout Session with server-only environment variables such as
+`STRIPE_SECRET_KEY` and return JSON containing either `url` or `checkoutUrl`. Do not prefix secret values
+with `REACT_APP_`, because Create React App embeds those variables into the browser bundle. See
+[`.env.example`](.env.example) for a safe template.
+
+The checkout request payload sent by the app includes:
+
+- `plantId`
+- `plantName`
+- `amount` in cents
+- `currency`
+- `successUrl`
+- `cancelUrl`
+
 ## Available Scripts
 
 In the project directory, you can run:
