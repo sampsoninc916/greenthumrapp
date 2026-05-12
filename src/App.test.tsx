@@ -67,5 +67,17 @@ describe('App integration flows', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Monstera Deliciosa')).toBeInTheDocument();
     expect(within(dialog).getByText(/Bright indirect light/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /buy with stripe/i })).toBeInTheDocument();
+  });
+
+  test('shows a safe configuration message when Stripe checkout endpoint is missing', async () => {
+    renderApp();
+
+    await userEvent.click(screen.getByText('Monstera Deliciosa'));
+    const dialog = await screen.findByRole('dialog');
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /buy with stripe/i }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/Stripe checkout is not configured/i);
   });
 });
